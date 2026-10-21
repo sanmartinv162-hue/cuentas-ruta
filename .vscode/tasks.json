@@ -1,0 +1,217 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Final production build",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"run",
+				"build"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			]
+		},
+		{
+			"label": "Build final touch targets",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"run",
+				"build"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			]
+		},
+		{
+			"label": "Database migration tests",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"test",
+				"--",
+				"src/tests/database.test.ts",
+				"--reporter=verbose"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Database migration tests retry",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"test",
+				"--",
+				"src/tests/database.test.ts",
+				"--reporter=verbose"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Account service tests",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"test",
+				"--",
+				"src/tests/accounts.test.ts",
+				"--reporter=verbose"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Account service tests retry",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"test",
+				"--",
+				"src/tests/accounts.test.ts",
+				"--reporter=verbose"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Domain service regression",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"test",
+				"--",
+				"src/tests/services.test.ts",
+				"--reporter=verbose"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Legacy import tests",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"test",
+				"--",
+				"src/tests/legacyData.test.ts",
+				"--reporter=verbose"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Journey account tests",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"test",
+				"--",
+				"src/tests/services.test.ts",
+				"--reporter=verbose"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Business balance validation tests",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"test",
+				"--",
+				"src/tests/services.test.ts",
+				"--reporter=verbose"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Account and journey regressions",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"test",
+				"--",
+				"src/tests/accounts.test.ts",
+				"src/tests/legacyData.test.ts",
+				"src/tests/services.test.ts",
+				"--reporter=dot"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Account journey tests retry",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"test",
+				"--",
+				"src/tests/accounts.test.ts",
+				"src/tests/legacyData.test.ts",
+				"src/tests/services.test.ts",
+				"--reporter=dot"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Finance typecheck",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"run",
+				"typecheck"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			]
+		},
+		{
+			"label": "Finance typecheck retry",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"run",
+				"typecheck"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			]
+		},
+		{
+			"label": "Finance typecheck retry 2",
+			"type": "shell",
+			"command": "C:\\Program Files\\nodejs\\npm.cmd",
+			"args": [
+				"run",
+				"typecheck"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			]
+		},
+		{
+			"label": "Run finance app for manual audit",
+			"type": "shell",
+			"command": "npm.cmd",
+			"args": [
+				"run",
+				"dev"
+			],
+			"isBackground": true,
+			"problemMatcher": [
+				"$tsc"
+			]
+		}
+	]
+}
