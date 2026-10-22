@@ -115,7 +115,9 @@ export class PersonalService {
     if (value.type === 'expense') {
       const snapshot = await this.accounts.balances('personal');
       if (!snapshot.ok) throw snapshot.error;
-      const priorEffect = previous?.accountId === account.id
+      const previousPaymentMethod = previous?.paymentMethod.trim().toLocaleLowerCase('es-CO');
+      const previousAccountId = previous?.accountId ?? result.value.find((item) => item.name.toLocaleLowerCase('es-CO') === previousPaymentMethod)?.id;
+      const priorEffect = previous && previousAccountId === account.id
         ? previous.type === 'income' ? -previous.amount : previous.amount
         : 0;
       const available = (snapshot.value.accounts.find((item) => item.account.id === account.id)?.balance ?? 0) + priorEffect;
