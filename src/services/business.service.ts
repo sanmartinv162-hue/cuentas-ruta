@@ -21,6 +21,7 @@ export class BusinessService {
   create(input: unknown): Promise<ServiceResult<BusinessMovementRecord>> {
     return executeService('business.create', async () => {
       const parsed = businessMovementInputSchema.safeParse(input);
+      if (parsed.success) this.assertNotFuture(parsed.data.date);
       if (!parsed.success) throw new ServiceError('VALIDATION', 'Los datos del movimiento del negocio no son válidos.', { cause: parsed.error });
       const activeJourneys = (await this.journeys.findAll()).filter((journey) => journey.status === 'active');
       if (activeJourneys.length !== 1) throw new ServiceError('VALIDATION', activeJourneys.length ? 'Hay más de una jornada activa; corrige el estado antes de registrar.' : 'Inicia una jornada antes de registrar movimientos del negocio.');
@@ -52,6 +53,7 @@ export class BusinessService {
   update(id: string, changes: unknown): Promise<ServiceResult<BusinessMovementRecord>> {
     return executeService('business.update', async () => {
       const parsed = businessMovementUpdateSchema.safeParse(changes);
+      if (parsed.success && parsed.data.date) this.assertNotFuture(parsed.data.date);
       if (!parsed.success) throw new ServiceError('VALIDATION', 'Los cambios del movimiento del negocio no son válidos.', { cause: parsed.error });
       const current = await this.repository.findById(id);
       if (!current) throw new ServiceError('NOT_FOUND', 'No se encontró el movimiento del negocio.');
@@ -127,6 +129,12 @@ export class BusinessService {
       if (value.amount > available) throw new ServiceError('INSUFFICIENT_FUNDS', 'Saldo insuficiente en la cuenta seleccionada.');
     }
     return { ...value, accountId: account.id, paymentMethod: account.name };
+  }
+
+  private assertNotFuture(date: string): void {
+    if (new Date(date).getTime() > this.now().getTime()) {
+      throw new ServiceError('VALIDATION', 'La fecha del movimiento no puede estar en el futuro.');
+    }
   }
 
   private async validateBalanceEffect(movement: BusinessMovementRecord, restoring: boolean): Promise<void> {

@@ -19,6 +19,7 @@ export class PersonalService {
   create(input: unknown): Promise<ServiceResult<PersonalMovementRecord>> {
     return executeService('personal.create', async () => {
       const parsed = personalMovementInputSchema.safeParse(input);
+      if (parsed.success) this.assertNotFuture(parsed.data.date);
       if (!parsed.success) throw new ServiceError('VALIDATION', 'Los datos del movimiento personal no son válidos.', { cause: parsed.error });
       const value = await this.withAccount(parsed.data);
       const match = value.type === 'expense' ? unwrapServiceResult(await this.classifier.classify(value.description, 'personal')) : null;
@@ -46,6 +47,7 @@ export class PersonalService {
   update(id: string, changes: unknown): Promise<ServiceResult<PersonalMovementRecord>> {
     return executeService('personal.update', async () => {
       const parsed = personalMovementUpdateSchema.safeParse(changes);
+      if (parsed.success && parsed.data.date) this.assertNotFuture(parsed.data.date);
       if (!parsed.success) throw new ServiceError('VALIDATION', 'Los cambios del movimiento personal no son válidos.', { cause: parsed.error });
       const current = await this.repository.findById(id);
       if (!current) throw new ServiceError('NOT_FOUND', 'No se encontró el movimiento personal.');
@@ -120,6 +122,12 @@ export class PersonalService {
       if (value.amount > available) throw new ServiceError('INSUFFICIENT_FUNDS', 'Saldo insuficiente en la cuenta seleccionada.');
     }
     return { ...value, accountId: account.id, paymentMethod: account.name };
+  }
+
+  private assertNotFuture(date: string): void {
+    if (new Date(date).getTime() > this.now().getTime()) {
+      throw new ServiceError('VALIDATION', 'La fecha del movimiento no puede estar en el futuro.');
+    }
   }
 
   private async validateBalanceEffect(movement: PersonalMovementRecord, restoring: boolean): Promise<void> {

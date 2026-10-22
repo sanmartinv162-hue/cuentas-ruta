@@ -19,7 +19,8 @@ interface Props {
 export function MovementDialog({ space, kind, settings, accounts, existing, onSave, onClose }: Props) {
   const [description, setDescription] = useState(existing?.description ?? '');
   const [amountText, setAmountText] = useState(existing ? String(existing.amountCOP) : '');
-  const [occurredAt, setOccurredAt] = useState(existing?.occurredAt.slice(0, 16) ?? localDateTimeValue());
+  // Stored ISO dates are UTC; datetime-local expects local time.
+  const [occurredAt, setOccurredAt] = useState(existing ? localDateTimeValue(new Date(existing.occurredAt)) : localDateTimeValue());
   const [paymentMethod, setPaymentMethod] = useState(existing?.paymentMethod ?? accounts.find((account) => account.name.toLocaleLowerCase('es-CO') === 'efectivo')?.name ?? settings.paymentMethods[0] ?? 'Efectivo');
   const [accountId, setAccountId] = useState(existing?.accountId ?? accounts.find((account) => account.name === paymentMethod)?.id ?? accounts[0]?.id ?? '');
   const [category, setCategory] = useState(existing?.category ?? '');
@@ -33,6 +34,7 @@ export function MovementDialog({ space, kind, settings, accounts, existing, onSa
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError(null);
     const amountCOP = parseCOP(amountText);
     if (!amountCOP) { setError('Escribe un valor mayor que cero.'); return; }
     const selectedCategory = category.trim() || detectedCategory || '';
@@ -41,7 +43,7 @@ export function MovementDialog({ space, kind, settings, accounts, existing, onSa
       return;
     }
     const date = new Date(occurredAt);
-    if (Number.isNaN(date.getTime()) || date.getTime() > Date.now() + 60_000) {
+    if (Number.isNaN(date.getTime()) || date.getTime() > Date.now()) {
       setError('La fecha debe ser válida y no puede estar en el futuro.');
       return;
     }
@@ -98,7 +100,7 @@ export function MovementDialog({ space, kind, settings, accounts, existing, onSa
           <div className="field-row">
             <label className="field">
               <span>Fecha y hora</span>
-              <input type="datetime-local" value={occurredAt} onChange={(event) => setOccurredAt(event.target.value)} required />
+              <input type="datetime-local" value={occurredAt} max={localDateTimeValue()} onChange={(event) => setOccurredAt(event.target.value)} required />
             </label>
             <label className="field">
               <span>Cuenta</span>
