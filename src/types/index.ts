@@ -7,6 +7,8 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 
 export interface Movement {
   id: string;
+  transferId?: string;
+  internalTransfer?: boolean;
   space: LedgerSpace;
   kind: MovementKind;
   amountCOP: number;

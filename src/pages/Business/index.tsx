@@ -12,7 +12,6 @@ import { AccountTransferDialog } from '../../components/dialogs/AccountTransferD
 import { TransferHistory } from '../../components/ui/TransferHistory';
 import { availableBusinessCapital, goalProgress, savingsBalance, totalsFor } from '../../services/ledger';
 import { formatCOP } from '../../utils/format';
-import { BusinessRecordSummaries } from '../../components/ui/BusinessRecordSummaries';
 import { BusinessJourneySummaries } from '../../components/ui/BusinessJourneySummaries';
 
 export default function BusinessPage() {
@@ -39,7 +38,6 @@ export default function BusinessPage() {
     <Section title="Jornada" eyebrow="ESTADO ACTUAL" action={<Link className="text-action" to="/business/journey">Ver jornada</Link>}><div className="quick-action-panel"><p>{activeJourney ? `Iniciada ${new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(activeJourney.startedAt))}` : 'No hay una jornada en curso.'}</p></div></Section>
     <Section title="Movimientos" eyebrow="REGISTRO DE HOY"><div className="business-actions"><SecondaryButton icon={<ArrowDownLeft size={16} />} onClick={() => openMovement('deliveries', 'income')}>Registrar ingreso</SecondaryButton><SecondaryButton icon={<ArrowUpRight size={16} />} onClick={() => openMovement('deliveries', 'expense')}>Registrar gasto</SecondaryButton><SecondaryButton icon={<ArrowRightLeft size={16} />} onClick={() => setTransferOpen(true)}>Transferir entre cuentas</SecondaryButton></div><p className="section-footnote">{todayMovements.length} movimientos registrados hoy.</p></Section>
     <Section title="Historial de movimientos" eyebrow="BUSCAR Y FILTRAR"><HistoryPage movements={data.movements} initialSpace="deliveries" onEdit={editMovement} onDelete={actions.deleteMovement} onRestore={actions.restoreMovement} /></Section>
-    <Section title="Resumen de registros guardados" eyebrow="DETALLE COMPLETO"><BusinessRecordSummaries movements={data.movements.filter((movement) => movement.space === 'deliveries')} /></Section>
     <Section title="Resumen de jornadas del día" eyebrow="JORNADAS GUARDADAS"><BusinessJourneySummaries workdays={data.workdays} movements={data.movements} accounts={data.accountBalances?.deliveries.accounts ?? []} /></Section>
     <Section title="Transferencias entre cuentas" eyebrow="ORIGEN Y DESTINO"><TransferHistory records={data.transfers?.deliveries ?? []} accounts={[...(data.accountBalances?.personal.accounts ?? []).map((account) => ({ ...account, module: 'personal' as const })), ...(data.accountBalances?.deliveries.accounts ?? []).map((account) => ({ ...account, module: 'business' as const }))]} onDelete={actions.deleteTransfer} onRestore={actions.restoreTransfer} /></Section>
     <Section title="Ahorro" eyebrow="BOLSILLO SEPARADO" action={<Link className="text-action" to="/business/savings">Ver ahorro</Link>}><div className="quick-action-panel"><div><p>Saldo acumulado</p><strong className="business-balance">{formatCOP(savings)}</strong></div><Link className="button outline-button" to="/business/savings">Abrir historial</Link></div></Section>

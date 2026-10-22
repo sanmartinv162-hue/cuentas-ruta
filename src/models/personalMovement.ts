@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const personalMovementSchema = z.object({
   id: z.string().uuid(),
+  transferId: z.string().uuid().optional(),
+  internalTransfer: z.boolean().optional(),
   type: z.enum(['income', 'expense']),
   accountId: z.string().uuid().optional(),
   amount: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),

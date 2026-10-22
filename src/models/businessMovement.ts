@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const businessMovementSchema = z.object({
   id: z.string().uuid(),
+  transferId: z.string().uuid().optional(),
+  internalTransfer: z.boolean().optional(),
   journeyId: z.string().uuid(),
   accountId: z.string().uuid().optional(),
   deliveryCount: z.number().int().min(0).max(99).optional().default(0),

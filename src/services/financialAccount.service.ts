@@ -87,9 +87,11 @@ export function calculateAccountBalances(
   for (const transfer of transfers.filter((item) => module === 'personal' || !baselineDate || item.date >= baselineDate)) {
     const source = balances.get(transfer.sourceAccountId);
     const destination = balances.get(transfer.destinationAccountId);
-    if (source === undefined || destination === undefined) continue;
-    balances.set(transfer.sourceAccountId, source - transfer.amount);
-    balances.set(transfer.destinationAccountId, destination + transfer.amount);
+    // A cross-module transfer has only one local endpoint in each snapshot.
+    // Apply whichever endpoint belongs to this module instead of discarding
+    // the whole transfer when the other account is in the other module.
+    if (source !== undefined) balances.set(transfer.sourceAccountId, source - transfer.amount);
+    if (destination !== undefined) balances.set(transfer.destinationAccountId, destination + transfer.amount);
   }
 
   if (module === 'business') {

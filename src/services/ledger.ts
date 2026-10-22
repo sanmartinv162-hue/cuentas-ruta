@@ -2,7 +2,7 @@ import type { AppData, LedgerSpace, Movement, ReportRange, Totals, Workday } fro
 import { formatCOP } from '../utils/format';
 
 export function totalsFor(movements: Movement[], space?: LedgerSpace): Totals {
-  const scoped = movements.filter((movement) => !movement.deletedAt && (!space || movement.space === space));
+  const scoped = movements.filter((movement) => !movement.deletedAt && !movement.internalTransfer && (!space || movement.space === space));
   const incomeCOP = scoped.filter((movement) => movement.kind === 'income').reduce((sum, item) => sum + item.amountCOP, 0);
   const expenseCOP = scoped.filter((movement) => movement.kind === 'expense').reduce((sum, item) => sum + item.amountCOP, 0);
   return { incomeCOP, expenseCOP, profitCOP: incomeCOP - expenseCOP };
@@ -15,7 +15,8 @@ export function savingsBalance(movements: { kind: 'deposit' | 'withdrawal'; amou
 
 export function availableBusinessCapital(workday: Workday, movements: Movement[]): number {
   const scoped = movements.filter((movement) => !movement.deletedAt && movement.space === 'deliveries' && movement.workdayId === workday.id);
-  return Math.max(workday.initialCapitalCOP + totalsFor(scoped).profitCOP - workday.savingsTransferredCOP, 0);
+  const netChange = scoped.reduce((total, movement) => total + (movement.kind === 'income' ? movement.amountCOP : -movement.amountCOP), 0);
+  return Math.max(workday.initialCapitalCOP + netChange - workday.savingsTransferredCOP, 0);
 }
 
 export function goalProgress(incomeCOP: number, goalCOP: number): number {
@@ -45,7 +46,7 @@ export function validateFinancialIntegrity(data: AppData): string[] {
     const accounts = data.accountBalances?.[movement.space].accounts ?? [];
     const validAccount = movement.accountId ? activeAccountIds.has(movement.accountId) : accounts.some((account) => account.name.toLocaleLowerCase('es-CO') === movement.paymentMethod.trim().toLocaleLowerCase('es-CO'));
     if (accounts.length && !validAccount) issues.push(`El movimiento ${movement.id} referencia una cuenta inexistente.`);
-    if (movement.space === 'deliveries' && (!movement.workdayId || !activeWorkdayIds.has(movement.workdayId))) issues.push(`El movimiento ${movement.id} no tiene una jornada válida.`);
+    if (movement.space === 'deliveries' && !movement.internalTransfer && (!movement.workdayId || !activeWorkdayIds.has(movement.workdayId))) issues.push(`El movimiento ${movement.id} no tiene una jornada válida.`);
   }
   if (data.businessProfitCOP !== undefined && totalsFor(data.movements.filter((item) => !item.deletedAt), 'deliveries').profitCOP !== data.businessProfitCOP) {
     issues.push('La utilidad del negocio no coincide con ingresos menos gastos de los movimientos activos.');

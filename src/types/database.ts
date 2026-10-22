@@ -30,6 +30,8 @@ export interface SettingsRecord extends SoftDeletableRecord {
 }
 
 export interface PersonalMovementRecord extends SoftDeletableRecord, SyncFields {
+  transferId?: string;
+  internalTransfer?: boolean;
   accountId?: string;
   type: MovementType;
   amount: number;
@@ -42,6 +44,8 @@ export interface PersonalMovementRecord extends SoftDeletableRecord, SyncFields 
 }
 
 export interface BusinessMovementRecord extends SoftDeletableRecord, SyncFields {
+  transferId?: string;
+  internalTransfer?: boolean;
   accountId?: string;
   journeyId: string;
   deliveryCount?: number;

@@ -42,6 +42,35 @@ export class FinanceApplicationService {
       accountTransferService.findAll('personal', { includeDeleted: true }), accountTransferService.findAll('business', { includeDeleted: true }),
     ]);
     const allAccounts = [...serviceValue(personalBalances).accounts, ...serviceValue(businessBalances).accounts];
+    const personalTransferRecords = serviceValue(personalTransfers);
+    const businessTransferRecords = serviceValue(businessTransfers);
+    const accountById = new Map(allAccounts.map(({ account }) => [account.id, account]));
+    const transferRecords = [...new Map([...personalTransferRecords, ...businessTransferRecords].map((transfer) => [transfer.id, transfer])).values()];
+    const transferMovements: Movement[] = transferRecords.flatMap((transfer) => {
+      const sourceModule = transfer.sourceModule ?? transfer.module;
+      const destinationModule = transfer.destinationModule ?? transfer.module;
+      if (sourceModule === destinationModule) return [];
+      const sourceAccount = accountById.get(transfer.sourceAccountId);
+      const destinationAccount = accountById.get(transfer.destinationAccountId);
+      const businessJourney = journeys
+        .filter((journey) => !journey.deletedAt && journey.startTime <= transfer.date && (!journey.endTime || transfer.date <= journey.endTime))
+        .sort((left, right) => right.startTime.localeCompare(left.startTime))[0]
+        ?? journeys.filter((journey) => !journey.deletedAt).sort((left, right) => right.startTime.localeCompare(left.startTime))[0];
+      const moduleLabel = (module: FinancialModule) => module === 'personal' ? 'Personal' : 'Negocio';
+      const description = `Transferencia ${moduleLabel(sourceModule)} → ${moduleLabel(destinationModule)}`;
+      const leg = (space: 'personal' | 'deliveries', kind: 'income' | 'expense', accountId: string, accountName: string, workdayId: string | null): Movement => ({
+        id: `${transfer.id}-${kind}-${space}`, transferId: transfer.id, internalTransfer: true, space, kind,
+        amountCOP: transfer.amount, description, occurredAt: transfer.date, paymentMethod: accountName,
+        accountId, category: 'Transferencia interna', deliveryCount: 0, workdayId,
+        deletedAt: transfer.deletedAt ?? null,
+      });
+      const movements: Movement[] = [];
+      if (sourceModule === 'personal' && sourceAccount) movements.push(leg('personal', 'expense', sourceAccount.id, sourceAccount.name, null));
+      if (sourceModule === 'business' && sourceAccount) movements.push(leg('deliveries', 'expense', sourceAccount.id, sourceAccount.name, businessJourney?.id ?? null));
+      if (destinationModule === 'personal' && destinationAccount) movements.push(leg('personal', 'income', destinationAccount.id, destinationAccount.name, null));
+      if (destinationModule === 'business' && destinationAccount) movements.push(leg('deliveries', 'income', destinationAccount.id, destinationAccount.name, businessJourney?.id ?? null));
+      return movements;
+    });
     const categories: AppSettings['learnedCategories'] = { personal: {}, deliveries: {} };
     for (const rule of rules) {
       categories.personal[rule.keyword] = rule.category;
@@ -53,14 +82,16 @@ export class FinanceApplicationService {
         id: record.id, space: 'personal' as const, kind: record.type, amountCOP: record.amount,
         description: record.description, occurredAt: record.date, paymentMethod: record.paymentMethod,
         accountId: record.accountId, category: record.detectedCategory, deliveryCount: 0, workdayId: null,
-        deletedAt: record.deletedAt ?? null,
+        deletedAt: record.deletedAt ?? null, transferId: record.transferId, internalTransfer: record.internalTransfer,
       })),
       ...business.map((record) => ({
         id: record.id, space: 'deliveries' as const, kind: record.type, amountCOP: record.amount,
         description: record.description, occurredAt: record.date, paymentMethod: record.paymentMethod,
         accountId: record.accountId, category: record.detectedCategory, deliveryCount: record.deliveryCount ?? 0,
         workdayId: record.journeyId, deletedAt: record.deletedAt ?? null,
+        transferId: record.transferId, internalTransfer: record.internalTransfer,
       })),
+      ...transferMovements,
     ].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
     const currentBusinessBalances = Object.fromEntries(serviceValue(businessBalances).accounts.map(({ account, balance }) => [account.id, balance]));
     const workdays: Workday[] = journeys.map((journey) => ({
