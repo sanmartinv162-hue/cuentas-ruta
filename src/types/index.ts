@@ -46,6 +46,8 @@ export interface SavingsMovement {
 export interface AccountTransfer {
   id: string;
   module: 'personal' | 'business';
+  sourceModule?: 'personal' | 'business';
+  destinationModule?: 'personal' | 'business';
   sourceAccountId: string;
   destinationAccountId: string;
   amount: number;

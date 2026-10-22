@@ -8,6 +8,8 @@ import { executeService, ServiceError, type ServiceResult } from './serviceResul
 
 export interface AccountTransferInput {
   module: FinancialModule;
+  sourceModule?: FinancialModule;
+  destinationModule?: FinancialModule;
   sourceAccountId: string;
   destinationAccountId: string;
   amount: number;
@@ -29,13 +31,15 @@ export class AccountTransferService {
       const parsed = accountTransferInputSchema.safeParse(input);
       if (!parsed.success) throw new ServiceError('VALIDATION', 'Los datos de la transferencia no son válidos.', { cause: parsed.error });
       const value = parsed.data;
-      const initialized = await this.accounts.initialize(value.module);
-      if (!initialized.ok) throw initialized.error;
+      const sourceModule = value.sourceModule ?? value.module;
+      const destinationModule = value.destinationModule ?? value.module;
+      const initialized = await Promise.all([this.accounts.initialize(sourceModule), this.accounts.initialize(destinationModule)]);
+      if (initialized.some((result) => !result.ok)) throw initialized.find((result) => !result.ok)!.error;
 
       return this.unitOfWork.withAccountTransferTransaction(async (unit) => {
-        const accounts = await unit.accounts(value.module);
-        const source = accounts.find((account) => account.id === value.sourceAccountId);
-        const destination = accounts.find((account) => account.id === value.destinationAccountId);
+        const [sourceAccounts, destinationAccounts] = await Promise.all([unit.accounts(sourceModule), unit.accounts(destinationModule)]);
+        const source = sourceAccounts.find((account) => account.id === value.sourceAccountId);
+        const destination = destinationAccounts.find((account) => account.id === value.destinationAccountId);
         if (!source || !destination) throw new ServiceError('NOT_FOUND', 'La cuenta de origen o destino no existe en este módulo.');
         if (source.id === destination.id) throw new ServiceError('VALIDATION', 'El origen y el destino deben ser cuentas distintas.');
 
@@ -43,13 +47,15 @@ export class AccountTransferService {
           unit.personalMovements(), unit.businessMovements(), unit.transfers(value.module),
           unit.savings(), unit.settings(), unit.journeys(),
         ]);
-        const balances = calculateAccountBalances(value.module, accounts, personal, business, transfers, savings, settings, journeys);
+        const balances = calculateAccountBalances(sourceModule, sourceAccounts, personal, business, transfers, savings, settings, journeys);
         const sourceBalance = balances.accounts.find((item) => item.account.id === source.id)?.balance ?? 0;
         if (value.amount > sourceBalance) throw new ServiceError('INSUFFICIENT_FUNDS', 'Saldo insuficiente en la cuenta de origen.');
 
         const timestamp = this.now().toISOString();
         const candidate: AccountTransferRecord = {
           ...value,
+          sourceModule,
+          destinationModule,
           id: this.identity.createId(),
           date: value.date ?? timestamp,
           createdAt: timestamp,
@@ -65,7 +71,11 @@ export class AccountTransferService {
   }
 
   findAll(module: FinancialModule, options?: { includeDeleted?: boolean }): Promise<ServiceResult<AccountTransferRecord[]>> {
-    return executeService('accountTransfer.findAll', async () => (await this.repository.findAll(options)).filter((transfer) => transfer.module === module));
+    return executeService('accountTransfer.findAll', async () => (await this.repository.findAll(options)).filter((transfer) => {
+      const sourceModule = transfer.sourceModule ?? transfer.module;
+      const destinationModule = transfer.destinationModule ?? transfer.module;
+      return sourceModule === module || destinationModule === module;
+    }));
   }
 
   search(module: FinancialModule, query: string, includeDeleted = false): Promise<ServiceResult<AccountTransferRecord[]>> {
@@ -86,12 +96,15 @@ export class AccountTransferService {
       if (!current || Boolean(current.deletedAt) === !restore) {
         throw new ServiceError('NOT_FOUND', restore ? 'No se encontró una transferencia eliminada.' : 'No se encontró una transferencia activa.');
       }
-      const accounts = await unit.accounts(current.module);
+      const sourceModule = current.sourceModule ?? current.module;
+      const destinationModule = current.destinationModule ?? current.module;
+      const accounts = await unit.accounts(restore ? sourceModule : destinationModule);
       const [personal, business, transfers, savings, settings, journeys] = await Promise.all([
         unit.personalMovements(), unit.businessMovements(), unit.transfers(current.module), unit.savings(), unit.settings(),
         unit.journeys(),
       ]);
-      const balances = calculateAccountBalances(current.module, accounts, personal, business, transfers, savings, settings, journeys);
+      const balanceModule = restore ? sourceModule : destinationModule;
+      const balances = calculateAccountBalances(balanceModule, accounts, personal, business, transfers, savings, settings, journeys);
       if (restore) {
         const sourceBalance = balances.accounts.find((item) => item.account.id === current.sourceAccountId)?.balance ?? 0;
         if (sourceBalance < current.amount) throw new ServiceError('INSUFFICIENT_FUNDS', 'Saldo insuficiente para restaurar la transferencia.');

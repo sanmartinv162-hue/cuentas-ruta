@@ -3,6 +3,8 @@ import { z } from 'zod';
 const accountTransferFields = z.object({
   id: z.string().uuid(),
   module: z.enum(['personal', 'business']),
+  sourceModule: z.enum(['personal', 'business']).optional(),
+  destinationModule: z.enum(['personal', 'business']).optional(),
   sourceAccountId: z.string().uuid(),
   destinationAccountId: z.string().uuid(),
   amount: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),

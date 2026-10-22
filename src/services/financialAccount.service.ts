@@ -197,7 +197,7 @@ export class FinancialAccountService {
       const initialized = await this.initialize(module);
       if (!initialized.ok) throw initialized.error;
       const [personal, business, transfers, savings, settings, journeys] = await Promise.all([
-        this.personal.findAll(), this.business.findAll(), this.transfers.findByModule(module),
+        this.personal.findAll(), this.business.findAll(), this.transfers.findAll(),
         module === 'business' ? this.savings.findAll() : Promise.resolve([]), this.settings.findById('global'),
         this.journeys.findAll(),
       ]);

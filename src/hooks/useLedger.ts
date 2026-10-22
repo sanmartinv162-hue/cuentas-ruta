@@ -16,7 +16,7 @@ export interface LedgerActions {
   addSavingsWithdrawal(amountCOP: number, note: string, accountId?: string): Promise<string | null>;
   deleteSaving(id: string): Promise<string | null>;
   restoreSaving(id: string): Promise<string | null>;
-  transferFunds(input: { module: FinancialModule; sourceAccountId: string; destinationAccountId: string; amount: number; description: string; date: string }): Promise<string | null>;
+  transferFunds(input: { module: FinancialModule; sourceModule?: FinancialModule; destinationModule?: FinancialModule; sourceAccountId: string; destinationAccountId: string; amount: number; description: string; date: string }): Promise<string | null>;
   deleteTransfer(id: string): Promise<string | null>;
   restoreTransfer(id: string): Promise<string | null>;
   createAccount(module: FinancialModule, name: string): Promise<string | null>;

@@ -226,7 +226,7 @@ export class FinanceApplicationService {
     return result.ok ? null : result.error.message;
   }
 
-  async createTransfer(input: { module: FinancialModule; sourceAccountId: string; destinationAccountId: string; amount: number; description: string; date: string }): Promise<string | null> {
+  async createTransfer(input: { module: FinancialModule; sourceModule?: FinancialModule; destinationModule?: FinancialModule; sourceAccountId: string; destinationAccountId: string; amount: number; description: string; date: string }): Promise<string | null> {
     const result = await accountTransferService.create(input);
     return result.ok ? null : result.error.message;
   }

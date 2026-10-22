@@ -123,6 +123,8 @@ export interface FinancialAccountRecord extends SoftDeletableRecord {
 
 export interface AccountTransferRecord extends SoftDeletableRecord {
   module: FinancialModule;
+  sourceModule?: FinancialModule;
+  destinationModule?: FinancialModule;
   sourceAccountId: string;
   destinationAccountId: string;
   amount: number;

@@ -12,6 +12,7 @@ import { AccountTransferDialog } from '../../components/dialogs/AccountTransferD
 import { TransferHistory } from '../../components/ui/TransferHistory';
 import { availableBusinessCapital, goalProgress, savingsBalance, totalsFor } from '../../services/ledger';
 import { formatCOP } from '../../utils/format';
+import { BusinessRecordSummaries } from '../../components/ui/BusinessRecordSummaries';
 
 export default function BusinessPage() {
   const { data, openMovement, notify, editMovement, actions, startJourney, loading } = useAppRuntime();
@@ -37,9 +38,10 @@ export default function BusinessPage() {
     <Section title="Jornada" eyebrow="ESTADO ACTUAL" action={<Link className="text-action" to="/business/journey">Ver jornada</Link>}><div className="quick-action-panel"><p>{activeJourney ? `Iniciada ${new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(activeJourney.startedAt))}` : 'No hay una jornada en curso.'}</p></div></Section>
     <Section title="Movimientos" eyebrow="REGISTRO DE HOY"><div className="business-actions"><SecondaryButton icon={<ArrowDownLeft size={16} />} onClick={() => openMovement('deliveries', 'income')}>Registrar ingreso</SecondaryButton><SecondaryButton icon={<ArrowUpRight size={16} />} onClick={() => openMovement('deliveries', 'expense')}>Registrar gasto</SecondaryButton><SecondaryButton icon={<ArrowRightLeft size={16} />} onClick={() => setTransferOpen(true)}>Transferir entre cuentas</SecondaryButton></div><p className="section-footnote">{todayMovements.length} movimientos registrados hoy.</p></Section>
     <Section title="Historial de movimientos" eyebrow="BUSCAR Y FILTRAR"><HistoryPage movements={data.movements} initialSpace="deliveries" onEdit={editMovement} onDelete={actions.deleteMovement} onRestore={actions.restoreMovement} /></Section>
-    <Section title="Transferencias entre cuentas" eyebrow="HISTORIAL"><TransferHistory records={data.transfers?.deliveries ?? []} accounts={data.accountBalances?.deliveries.accounts ?? []} onDelete={actions.deleteTransfer} onRestore={actions.restoreTransfer} /></Section>
+    <Section title="Resumen de registros guardados" eyebrow="DETALLE COMPLETO"><BusinessRecordSummaries movements={data.movements.filter((movement) => movement.space === 'deliveries')} /></Section>
+    <Section title="Transferencias entre cuentas" eyebrow="HISTORIAL"><TransferHistory records={data.transfers?.deliveries ?? []} accounts={[...(data.accountBalances?.personal.accounts ?? []), ...(data.accountBalances?.deliveries.accounts ?? [])]} onDelete={actions.deleteTransfer} onRestore={actions.restoreTransfer} /></Section>
     <Section title="Ahorro" eyebrow="BOLSILLO SEPARADO" action={<Link className="text-action" to="/business/savings">Ver ahorro</Link>}><div className="quick-action-panel"><div><p>Saldo acumulado</p><strong className="business-balance">{formatCOP(savings)}</strong></div><Link className="button outline-button" to="/business/savings">Abrir historial</Link></div></Section>
     <Section title="Historial" eyebrow="JORNADAS"><div className="journey-history-list">{data.workdays.some((workday) => !workday.deletedAt) ? [...data.workdays].filter((workday) => !workday.deletedAt).reverse().slice(0, 4).map((journey) => <div className="journey-history-row" key={journey.id}><span>{new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(journey.startedAt))}</span><strong>{journey.endedAt ? 'Finalizada' : 'En curso'}</strong></div>) : <p className="section-footnote">Aún no hay jornadas registradas.</p>}</div></Section>
-    {transferOpen && <AccountTransferDialog module="business" accounts={data.accountBalances?.deliveries.accounts ?? []} onSave={actions.transferFunds} onClose={() => setTransferOpen(false)} />}
+    {transferOpen && <AccountTransferDialog module="business" accounts={[...(data.accountBalances?.personal.accounts ?? []).map((account) => ({ ...account, module: 'personal' as const })), ...(data.accountBalances?.deliveries.accounts ?? []).map((account) => ({ ...account, module: 'business' as const }))]} onSave={actions.transferFunds} onClose={() => setTransferOpen(false)} />}
   </div>;
 }

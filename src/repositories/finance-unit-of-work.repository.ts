@@ -87,7 +87,7 @@ export class FinanceUnitOfWorkRepository {
         businessMovements: async () => (await this.database.businessMovements.toArray()).filter((movement) => !movement.deletedAt),
         journeys: async () => (await this.database.journeys.toArray()).filter((journey) => !journey.deletedAt),
         savings: async () => (await this.database.savings.toArray()).filter((saving) => !saving.deletedAt),
-        transfers: async (module) => (await this.database.transfers.where('module').equals(module).toArray()).filter((transfer) => !transfer.deletedAt),
+        transfers: async () => (await this.database.transfers.toArray()).filter((transfer) => !transfer.deletedAt),
         transfer: (id) => this.database.transfers.get(id),
         addTransfer: async (record) => { await this.database.transfers.add(record); },
         deleteTransfer: async (id, timestamp) => {
