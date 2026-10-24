@@ -142,3 +142,9 @@ export interface DatabaseMetadataRecord {
   key: string;
   value: string;
 }
+
+export interface BackupRecord {
+  id: string;
+  createdAt: string;
+  data: import('./index').AppData;
+}

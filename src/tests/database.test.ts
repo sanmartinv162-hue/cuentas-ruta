@@ -18,7 +18,7 @@ describe('FinanceAssistantDB', () => {
     await db.open();
     expect(db.name).toBe('FinanceAssistantDB');
     expect(db.tables.map((table) => table.name).sort()).toEqual([
-      'accounts', 'businessMovements', 'capital', 'classificationRules', 'dailyGoals',
+      'accounts', 'backups', 'businessMovements', 'capital', 'classificationRules', 'dailyGoals',
       'journeys', 'metadata', 'personalMovements', 'savings', 'settings', 'transfers',
     ]);
 

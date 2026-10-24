@@ -10,8 +10,10 @@ export function AccountTransferDialog({ module, accounts, onSave, onClose }: {
   onSave(input: { module: FinancialModule; sourceModule: FinancialModule; destinationModule: FinancialModule; sourceAccountId: string; destinationAccountId: string; amount: number; description: string; date: string }): Promise<string | null>;
   onClose(): void;
 }) {
-  const [sourceAccountId, setSourceAccountId] = useState(accounts[0]?.id ?? '');
-  const [destinationAccountId, setDestinationAccountId] = useState(accounts.find((account) => account.id !== accounts[0]?.id)?.id ?? '');
+  const defaultSourceId = accounts.find((account) => account.module === module)?.id ?? accounts[0]?.id ?? '';
+  const defaultDestinationId = accounts.find((account) => account.id !== defaultSourceId && account.module === module)?.id ?? accounts.find((account) => account.id !== defaultSourceId)?.id ?? '';
+  const [sourceAccountId, setSourceAccountId] = useState(defaultSourceId);
+  const [destinationAccountId, setDestinationAccountId] = useState(defaultDestinationId);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(() => {

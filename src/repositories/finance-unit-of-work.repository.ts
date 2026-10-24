@@ -44,7 +44,7 @@ export interface AccountTransferUnitOfWork {
   businessMovements(): Promise<BusinessMovementRecord[]>;
   journeys(): Promise<JourneyRecord[]>;
   savings(): Promise<SavingRecord[]>;
-  transfers(module: FinancialModule): Promise<AccountTransferRecord[]>;
+  transfers(): Promise<AccountTransferRecord[]>;
   transfer(id: string): Promise<AccountTransferRecord | undefined>;
   addTransfer(record: AccountTransferRecord): Promise<void>;
   deleteTransfer(id: string, timestamp: string): Promise<AccountTransferRecord>;
@@ -161,6 +161,25 @@ export class FinanceUnitOfWorkRepository {
     );
   }
 
+  resetToFactory(): Promise<void> {
+    return this.database.transaction(
+      'rw', [this.database.settings, this.database.accounts, this.database.personalMovements,
+        this.database.businessMovements, this.database.journeys, this.database.savings,
+        this.database.classificationRules, this.database.transfers, this.database.capital,
+        this.database.dailyGoals, this.database.metadata],
+      async () => {
+        await Promise.all([
+          this.database.settings.clear(), this.database.accounts.clear(),
+          this.database.personalMovements.clear(), this.database.businessMovements.clear(),
+          this.database.journeys.clear(), this.database.savings.clear(),
+          this.database.classificationRules.clear(), this.database.transfers.clear(),
+          this.database.capital.clear(), this.database.dailyGoals.clear(),
+          this.database.metadata.clear(),
+        ]);
+      },
+    );
+  }
+
   clearTodayRecords(): Promise<void> {
     const timestamp = new Date().toISOString();
     const now = new Date();
@@ -210,7 +229,7 @@ export class FinanceUnitOfWorkRepository {
       businessAccounts: async () => (await this.database.accounts.where('module').equals('business').toArray()).filter((account) => !account.deletedAt),
       personalMovements: async () => (await this.database.personalMovements.toArray()).filter((movement) => !movement.deletedAt),
       businessMovements: async () => (await this.database.businessMovements.toArray()).filter((movement) => !movement.deletedAt),
-      transfers: async () => (await this.database.transfers.where('module').equals('business').toArray()).filter((transfer) => !transfer.deletedAt),
+      transfers: async () => (await this.database.transfers.toArray()).filter((transfer) => !transfer.deletedAt),
       settings: () => this.database.settings.get('global'),
       addSaving: async (record) => { await this.database.savings.add(record); },
       putSaving: async (record) => { await this.database.savings.put(record); },

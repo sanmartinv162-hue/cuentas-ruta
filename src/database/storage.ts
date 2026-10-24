@@ -108,6 +108,19 @@ export async function saveData(data: AppData): Promise<void> {
   }
 }
 
+/** Elimina la base heredada que solo se usa durante la migración inicial. */
+export async function clearLegacyStorage(): Promise<void> {
+  await ledgerDatabase.transaction('rw', ledgerDatabase.movements, ledgerDatabase.workdays, ledgerDatabase.savings, ledgerDatabase.metadata, async () => {
+    await Promise.all([
+      ledgerDatabase.movements.clear(),
+      ledgerDatabase.workdays.clear(),
+      ledgerDatabase.savings.clear(),
+      ledgerDatabase.metadata.clear(),
+    ]);
+  });
+  window.localStorage.removeItem(STORAGE_KEY);
+}
+
 export function downloadBackup(data: AppData): void {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

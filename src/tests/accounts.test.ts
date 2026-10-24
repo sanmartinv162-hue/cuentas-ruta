@@ -142,6 +142,40 @@ describe('cuentas y transferencias', () => {
     expect(businessBalances.ok && Object.fromEntries(businessBalances.value.accounts.map(({ account, balance }) => [account.name, balance]))).toEqual({ Efectivo: 0, Nequi: 3_000 });
   });
 
+  it('aplica una transferencia negocio a personal usando el Nequi correcto en ambos módulos', async () => {
+    const personalAccounts = await accounts.list('personal');
+    const businessAccounts = await accounts.list('business');
+    if (!personalAccounts.ok || !businessAccounts.ok) return;
+    const personalNequi = personalAccounts.value.find((account) => account.name === 'Nequi')!;
+    const businessNequi = businessAccounts.value.find((account) => account.name === 'Nequi')!;
+    await database.settings.add({
+      id: 'global', dailyGoal: 100_000, currency: 'COP', theme: 'system',
+      businessInitialCapital: 10_000, businessInitialCapitalByAccount: { [businessNequi.id]: 10_000 },
+      personalInitialCapitalByAccount: {}, businessSaving: 0,
+      createdAt: timestamp, updatedAt: timestamp, deletedAt: null,
+    });
+
+    const transfer = await transfers.create({
+      module: 'business', sourceModule: 'business', destinationModule: 'personal',
+      sourceAccountId: businessNequi.id, destinationAccountId: personalNequi.id,
+      amount: 4_000, description: 'Retiro del negocio', date: timestamp,
+    });
+    expect(transfer.ok).toBe(true);
+    const personalBalances = await accounts.balances('personal');
+    const businessBalances = await accounts.balances('business');
+    expect(personalBalances.ok && Object.fromEntries(personalBalances.value.accounts.map(({ account, balance }) => [account.name, balance]))).toEqual({ Efectivo: 0, Nequi: 4_000 });
+    expect(businessBalances.ok && Object.fromEntries(businessBalances.value.accounts.map(({ account, balance }) => [account.name, balance]))).toEqual({ Efectivo: 0, Nequi: 6_000 });
+  });
+
+  it('suma y resta movimientos de Nequi sobre la misma cuenta', async () => {
+    const income = await personal.create({ type: 'income', amount: 7_000, description: 'Ingreso Nequi', paymentMethod: 'Nequi', date: timestamp });
+    expect(income.ok).toBe(true);
+    const expense = await personal.create({ type: 'expense', amount: 2_000, description: 'Compra Nequi', paymentMethod: 'Nequi', date: timestamp });
+    expect(expense.ok).toBe(true);
+    const balances = await accounts.balances('personal');
+    expect(balances.ok && balances.value.accounts.find(({ account }) => account.name === 'Nequi')?.balance).toBe(5_000);
+  });
+
   it('mantiene el capital inicial personal separado del capital del negocio', async () => {
     const personalAccounts = await accounts.list('personal');
     const businessAccounts = await accounts.list('business');

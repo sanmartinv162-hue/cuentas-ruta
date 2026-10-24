@@ -284,12 +284,17 @@ export function searchLedger(data: AppData, query: string, now = new Date()): Gl
     detail: `Capital inicial ${formatCOP(workday.initialCapitalCOP)} · ${workday.endedAt ? 'Cerrada' : 'En curso'} · ${Object.entries(workday.initialCapitalByAccount ?? {}).map(([id, amount]) => `${accountName(id, 'deliveries')} ${formatCOP(amount)}`).join(' ')}`,
     date: workday.startedAt, amountCOP: workday.initialCapitalCOP, destination: '/business/journey',
   });
-  for (const space of ['personal', 'deliveries'] as const) for (const transfer of data.transfers?.[space] ?? []) {
+  const uniqueTransfers = [...new Map([...(data.transfers?.personal ?? []), ...(data.transfers?.deliveries ?? [])].map((transfer) => [transfer.id, transfer])).values()];
+  for (const transfer of uniqueTransfers) {
     if (transfer.deletedAt) continue;
+    const sourceModule = transfer.sourceModule ?? transfer.module;
+    const destinationModule = transfer.destinationModule ?? transfer.module;
+    const sourceSpace = sourceModule === 'personal' ? 'personal' : 'deliveries';
+    const destinationSpace = destinationModule === 'personal' ? 'personal' : 'deliveries';
     candidates.push({
       id: transfer.id, type: 'transfer', title: transfer.description,
-      detail: `Transferencia ${accountName(transfer.sourceAccountId, space)} → ${accountName(transfer.destinationAccountId, space)}`,
-      date: transfer.date, amountCOP: transfer.amount, destination: space === 'personal' ? '/personal' : '/business',
+      detail: `Transferencia ${accountName(transfer.sourceAccountId, sourceSpace)} → ${accountName(transfer.destinationAccountId, destinationSpace)}`,
+      date: transfer.date, amountCOP: transfer.amount, destination: destinationSpace === 'personal' ? '/personal' : '/business',
     });
   }
   for (const saving of data.savings.filter((item) => !item.deletedAt)) candidates.push({
@@ -319,7 +324,8 @@ export function buildReportExportRows(data: AppData, from: string, to: string): 
   for (const item of data.savings.filter((saving) => !saving.deletedAt && new Date(saving.occurredAt) >= start && new Date(saving.occurredAt) < endExclusive)) {
     rows.push({ date: item.occurredAt, module: 'Ahorro del negocio', type: item.kind === 'deposit' ? 'Depósito' : 'Retiro', description: item.note, category: 'Ahorro', account: item.accountId ?? 'Efectivo', amountCOP: item.amountCOP });
   }
-  for (const transfer of [...(data.transfers?.personal ?? []), ...(data.transfers?.deliveries ?? [])].filter((item) => !item.deletedAt && new Date(item.date) >= start && new Date(item.date) < endExclusive)) {
+  const uniqueTransfers = [...new Map([...(data.transfers?.personal ?? []), ...(data.transfers?.deliveries ?? [])].map((transfer) => [transfer.id, transfer])).values()];
+  for (const transfer of uniqueTransfers.filter((item) => !item.deletedAt && new Date(item.date) >= start && new Date(item.date) < endExclusive)) {
     rows.push({ date: transfer.date, module: transfer.module === 'business' ? 'Negocio' : 'Finanzas personales', type: 'Transferencia', description: transfer.description, category: 'Transferencia interna', account: `${transfer.sourceAccountId} → ${transfer.destinationAccountId}`, amountCOP: transfer.amount });
   }
   return rows.sort((left, right) => left.date.localeCompare(right.date));
@@ -377,7 +383,8 @@ export function buildFinancialReportAnalytics(data: AppData, range: ReportRange,
     for (const item of timeline) {
       if (item.kind === 'movement') {
         const movement = item.value;
-        const id = movement.accountId ?? accounts.find((account) => account.name === movement.paymentMethod)?.id;
+        const normalizedPaymentMethod = movement.paymentMethod.trim().toLocaleLowerCase('es-CO');
+        const id = movement.accountId ?? accounts.find((account) => account.name.trim().toLocaleLowerCase('es-CO') === normalizedPaymentMethod)?.id;
         if (id) balances.set(id, (balances.get(id) ?? 0) - (movement.kind === 'income' ? movement.amountCOP : -movement.amountCOP));
       } else if (item.kind === 'saving') {
         const saving = item.value;

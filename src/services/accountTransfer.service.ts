@@ -44,7 +44,7 @@ export class AccountTransferService {
         if (source.id === destination.id) throw new ServiceError('VALIDATION', 'El origen y el destino deben ser cuentas distintas.');
 
         const [personal, business, transfers, savings, settings, journeys] = await Promise.all([
-          unit.personalMovements(), unit.businessMovements(), unit.transfers(value.module),
+          unit.personalMovements(), unit.businessMovements(), unit.transfers(),
           unit.savings(), unit.settings(), unit.journeys(),
         ]);
         const balances = calculateAccountBalances(sourceModule, sourceAccounts, personal, business, transfers, savings, settings, journeys);
@@ -79,7 +79,11 @@ export class AccountTransferService {
   }
 
   search(module: FinancialModule, query: string, includeDeleted = false): Promise<ServiceResult<AccountTransferRecord[]>> {
-    return executeService('accountTransfer.search', async () => (await this.repository.search({ query, includeDeleted })).filter((transfer) => transfer.module === module));
+    return executeService('accountTransfer.search', async () => (await this.repository.search({ query, includeDeleted })).filter((transfer) => {
+      const sourceModule = transfer.sourceModule ?? transfer.module;
+      const destinationModule = transfer.destinationModule ?? transfer.module;
+      return sourceModule === module || destinationModule === module;
+    }));
   }
 
   delete(id: string): Promise<ServiceResult<AccountTransferRecord>> {
@@ -100,7 +104,7 @@ export class AccountTransferService {
       const destinationModule = current.destinationModule ?? current.module;
       const accounts = await unit.accounts(restore ? sourceModule : destinationModule);
       const [personal, business, transfers, savings, settings, journeys] = await Promise.all([
-        unit.personalMovements(), unit.businessMovements(), unit.transfers(current.module), unit.savings(), unit.settings(),
+        unit.personalMovements(), unit.businessMovements(), unit.transfers(), unit.savings(), unit.settings(),
         unit.journeys(),
       ]);
       const balanceModule = restore ? sourceModule : destinationModule;

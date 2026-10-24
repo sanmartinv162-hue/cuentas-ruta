@@ -36,5 +36,10 @@ export const schemaV5 = {
   accounts: '&id,&[module+name],&[module+normalizedName],module,name,normalizedName,createdAt,updatedAt,deletedAt',
 } as const;
 
+export const schemaV6 = {
+  ...schemaV5,
+  backups: '&id,createdAt',
+} as const;
+
 export const DATABASE_NAME = 'FinanceAssistantDB';
-export const CURRENT_DATABASE_VERSION = 5;
+export const CURRENT_DATABASE_VERSION = 6;

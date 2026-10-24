@@ -140,6 +140,11 @@ export class FinancialAccountService {
     return initialization;
   }
 
+  resetInitializationCache(): void {
+    this.initializedModules.clear();
+    this.initializingModules.clear();
+  }
+
   list(module: FinancialModule, options?: { includeDeleted?: boolean }): Promise<ServiceResult<FinancialAccountRecord[]>> {
     return executeService('account.list', async () => {
       await this.initialize(module).then((result) => {

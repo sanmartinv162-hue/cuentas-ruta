@@ -24,7 +24,7 @@ interface PreparedBackup {
 }
 
 function totals(movements: Movement[], journeyId: string): { income: number; expenses: number } {
-  const linked = movements.filter((movement) => movement.space === 'deliveries' && movement.workdayId === journeyId);
+  const linked = movements.filter((movement) => movement.space === 'deliveries' && !movement.internalTransfer && movement.workdayId === journeyId);
   return {
     income: linked.filter((movement) => movement.kind === 'income').reduce((sum, movement) => sum + movement.amountCOP, 0),
     expenses: linked.filter((movement) => movement.kind === 'expense').reduce((sum, movement) => sum + movement.amountCOP, 0),
@@ -68,8 +68,8 @@ export class LegacyDataService {
       const businessCash = this.accountByName(businessAccounts, 'Efectivo');
       const deviceId = await this.identity.getDeviceId();
       const settings = this.createSettings(source, businessAccounts, timestamp);
-      const personalMovements = source.movements.filter((item) => item.space === 'personal').map((movement) => this.createPersonalMovement(movement, personalAccounts, deviceId, timestamp));
-      const businessInputs = source.movements.filter((item) => item.space === 'deliveries');
+      const personalMovements = source.movements.filter((item) => item.space === 'personal' && !item.internalTransfer).map((movement) => this.createPersonalMovement(movement, personalAccounts, deviceId, timestamp));
+      const businessInputs = source.movements.filter((item) => item.space === 'deliveries' && !item.internalTransfer);
       const orphanJourneys = new Map<string, string>();
       for (const movement of businessInputs) {
         if (!movement.workdayId) {
@@ -91,16 +91,21 @@ export class LegacyDataService {
       const savings = this.createSavings(source, businessCash, timestamp);
       const rules = this.createLearnedRules(source, timestamp);
       const allAccounts = [...personalAccounts, ...businessAccounts];
-      const transfers = (source.transfers ? [...source.transfers.personal, ...source.transfers.deliveries] : []).map((transfer) => {
+      const transferSources = source.transfers ? [...source.transfers.personal, ...source.transfers.deliveries] : [];
+      const transfers = [...new Map(transferSources.map((transfer) => [transfer.id, transfer])).values()].map((transfer) => {
         const parsed = accountTransferSchema.safeParse({
           id: transfer.id, module: transfer.module,
+          sourceModule: transfer.sourceModule ?? transfer.module,
+          destinationModule: transfer.destinationModule ?? transfer.module,
           sourceAccountId: transfer.sourceAccountId, destinationAccountId: transfer.destinationAccountId,
           amount: transfer.amount, description: transfer.description, date: transfer.date,
           createdAt: transfer.date, updatedAt: timestamp, deletedAt: transfer.deletedAt ?? null,
         });
         if (!parsed.success) throw new ServiceError('VALIDATION', `La transferencia ${transfer.id} no es válida.`, { cause: parsed.error });
-        if (!allAccounts.some((account) => account.id === parsed.data.sourceAccountId && account.module === parsed.data.module) ||
-            !allAccounts.some((account) => account.id === parsed.data.destinationAccountId && account.module === parsed.data.module)) {
+        const sourceModule = parsed.data.sourceModule ?? parsed.data.module;
+        const destinationModule = parsed.data.destinationModule ?? parsed.data.module;
+        if (!allAccounts.some((account) => account.id === parsed.data.sourceAccountId && account.module === sourceModule) ||
+            !allAccounts.some((account) => account.id === parsed.data.destinationAccountId && account.module === destinationModule)) {
           throw new ServiceError('VALIDATION', `No se encontraron las cuentas de la transferencia ${transfer.id}.`);
         }
         return parsed.data;
@@ -203,20 +208,22 @@ export class LegacyDataService {
       if (!accountId) throw new ServiceError('VALIDATION', `El ahorro ${saving.id} referencia una cuenta inexistente.`);
       return { ...saving, accountId };
     });
-    const transfers = data.transfers ? {
-      personal: data.transfers.personal.map((transfer) => {
-        const sourceAccountId = resolveAccount('personal', transfer.sourceAccountId);
-        const destinationAccountId = resolveAccount('personal', transfer.destinationAccountId);
+    const transfers = data.transfers ? (() => {
+      const sourceRecords = [...data.transfers.personal, ...data.transfers.deliveries];
+      const uniqueRecords = [...new Map(sourceRecords.map((transfer) => [transfer.id, transfer])).values()];
+      const mapped = uniqueRecords.map((transfer) => {
+        const sourceModule = transfer.sourceModule ?? transfer.module;
+        const destinationModule = transfer.destinationModule ?? transfer.module;
+        const sourceAccountId = resolveAccount(sourceModule, transfer.sourceAccountId);
+        const destinationAccountId = resolveAccount(destinationModule, transfer.destinationAccountId);
         if (!sourceAccountId || !destinationAccountId) throw new ServiceError('VALIDATION', `La transferencia ${transfer.id} referencia una cuenta inexistente.`);
-        return { ...transfer, sourceAccountId, destinationAccountId };
-      }),
-      deliveries: data.transfers.deliveries.map((transfer) => {
-        const sourceAccountId = resolveAccount('business', transfer.sourceAccountId);
-        const destinationAccountId = resolveAccount('business', transfer.destinationAccountId);
-        if (!sourceAccountId || !destinationAccountId) throw new ServiceError('VALIDATION', `La transferencia ${transfer.id} referencia una cuenta inexistente.`);
-        return { ...transfer, sourceAccountId, destinationAccountId };
-      }),
-    } : undefined;
+        return { ...transfer, sourceModule, destinationModule, sourceAccountId, destinationAccountId };
+      });
+      return {
+        personal: mapped.filter((transfer) => (transfer.sourceModule ?? transfer.module) === 'personal' || (transfer.destinationModule ?? transfer.module) === 'personal'),
+        deliveries: mapped.filter((transfer) => (transfer.sourceModule ?? transfer.module) === 'business' || (transfer.destinationModule ?? transfer.module) === 'business'),
+      };
+    })() : undefined;
 
     const workdays: Workday[] = data.workdays.map((workday) => ({
       ...workday,
@@ -279,9 +286,9 @@ export class LegacyDataService {
     if (!data.accountBalances) return;
     const active = <T extends { deletedAt?: string | null }>(records: T[]) => records.filter((record) => !record.deletedAt);
     const personal = calculateAccountBalances('personal', batch.accounts.filter((account) => account.module === 'personal'), active(batch.personalMovements), active(batch.businessMovements),
-      (batch.transfers ?? []).filter((transfer) => transfer.module === 'personal' && !transfer.deletedAt), [], batch.settings, active(batch.journeys));
+      (batch.transfers ?? []).filter((transfer) => !transfer.deletedAt), [], batch.settings, active(batch.journeys));
     const business = calculateAccountBalances('business', batch.accounts.filter((account) => account.module === 'business'), active(batch.personalMovements), active(batch.businessMovements),
-      (batch.transfers ?? []).filter((transfer) => transfer.module === 'business' && !transfer.deletedAt), active(batch.savings), batch.settings, active(batch.journeys));
+      (batch.transfers ?? []).filter((transfer) => !transfer.deletedAt), active(batch.savings), batch.settings, active(batch.journeys));
     if (personal.accounts.some((item) => item.balance < 0) || business.accounts.some((item) => item.balance < 0) ||
         personal.total !== data.accountBalances.personal.total || business.total !== data.accountBalances.deliveries.total) {
       throw new ServiceError('VALIDATION', 'La conciliación del respaldo no coincide con el capital total; no se reemplazaron los datos actuales.');
@@ -336,7 +343,7 @@ export class LegacyDataService {
     const cash = this.accountByName(accounts, 'Efectivo');
     const initialCapitalByAccount = workday.initialCapitalByAccount ?? Object.fromEntries(accounts.map((account) => [account.id, account.id === cash.id ? workday.initialCapitalCOP : 0]));
     const finalCapitalByAccount = Object.fromEntries(accounts.map((account) => {
-      const accountMovements = movements.filter((movement) => movement.space === 'deliveries' && movement.workdayId === workday.id &&
+      const accountMovements = movements.filter((movement) => movement.space === 'deliveries' && !movement.internalTransfer && movement.workdayId === workday.id &&
         this.accountForLabel(accounts, movement.paymentMethod).id === account.id);
       const net = accountMovements.reduce((sum, movement) => sum + (movement.kind === 'income' ? movement.amountCOP : -movement.amountCOP), 0);
       return [account.id, workday.finalCapitalByAccount?.[account.id] ?? Math.max((initialCapitalByAccount[account.id] ?? 0) + net - (account.id === cash.id ? savingTransferred : 0), 0)];

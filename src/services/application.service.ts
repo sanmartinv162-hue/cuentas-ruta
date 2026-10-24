@@ -1,4 +1,4 @@
-import { loadData } from '../database/storage';
+import { clearLegacyStorage, loadData } from '../database/storage';
 import type { AppData, AppSettings, LedgerSpace, Movement, MovementDraft, SavingsMovement, ThemeMode, Workday } from '../types';
 import type { AccountTransferRecord, FinancialModule } from '../types/database';
 import { businessMovementRepository } from '../repositories/business.repository';
@@ -20,6 +20,8 @@ import { classificationService } from './classification.service';
 import { validateFinancialIntegrity } from './ledger';
 import { financeUnitOfWorkRepository } from '../repositories/finance-unit-of-work.repository';
 import type { ServiceResult } from './serviceResult';
+import { createAutomaticBackup } from './backup.service';
+import { createEmptyData } from '../models/defaults';
 
 function serviceValue<T>(result: ServiceResult<T>): T {
   if (!result.ok) throw result.error;
@@ -30,7 +32,9 @@ export class FinanceApplicationService {
   async load(): Promise<AppData> {
     const legacy = await loadData();
     serviceValue(await legacyDataService.import(legacy));
-    return this.snapshot();
+    const snapshot = await this.snapshot();
+    await createAutomaticBackup(snapshot);
+    return snapshot;
   }
 
   async snapshot(): Promise<AppData> {
@@ -132,8 +136,8 @@ export class FinanceApplicationService {
       },
       businessProfitCOP: serviceValue(capital).totalProfit,
       transfers: {
-        personal: serviceValue(personalTransfers).map((transfer) => ({ ...transfer, module: 'personal' as const })),
-        deliveries: serviceValue(businessTransfers).map((transfer) => ({ ...transfer, module: 'business' as const })),
+        personal: serviceValue(personalTransfers).map((transfer) => ({ ...transfer, module: transfer.module as 'personal' | 'business' })),
+        deliveries: serviceValue(businessTransfers).map((transfer) => ({ ...transfer, module: transfer.module as 'personal' | 'business' })),
       },
     };
     snapshot.integrityIssues = validateFinancialIntegrity(snapshot);
@@ -239,6 +243,33 @@ export class FinanceApplicationService {
   async restoreBackup(data: AppData): Promise<string | null> {
     const result = await legacyDataService.import(data, true);
     return result.ok ? null : result.error.message;
+  }
+
+  async resetToFactory(): Promise<string | null> {
+    try {
+      const current = await this.snapshot();
+      await createAutomaticBackup(current);
+    } catch (error) {
+      console.warn('No se pudo crear el respaldo previo al restablecimiento; se continúa con la restauración de fábrica.', error);
+    }
+    try {
+      await financeUnitOfWorkRepository.resetToFactory();
+      await clearLegacyStorage();
+      financialAccountService.resetInitializationCache();
+      serviceValue(await legacyDataService.import(createEmptyData(), true));
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : 'No se pudo restablecer el proyecto.';
+    }
+  }
+
+  async createBackup(): Promise<string | null> {
+    try {
+      await createAutomaticBackup(await this.snapshot());
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : 'No se pudo crear el respaldo automático.';
+    }
   }
 
   async clearTodayRecords(): Promise<string | null> {

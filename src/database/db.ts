@@ -1,6 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { migrateV1ToV2, migrateV3ToV4 } from './migrations';
-import { CURRENT_DATABASE_VERSION, DATABASE_NAME, schemaV1, schemaV2, schemaV3, schemaV4, schemaV5 } from './schema';
+import { CURRENT_DATABASE_VERSION, DATABASE_NAME, schemaV1, schemaV2, schemaV3, schemaV4, schemaV5, schemaV6 } from './schema';
 import type {
   BusinessMovementRecord,
   AccountTransferRecord,
@@ -13,6 +13,7 @@ import type {
   SavingRecord,
   SettingsRecord,
   FinancialAccountRecord,
+  BackupRecord,
 } from '../types/database';
 
 /** Instancia tipada única de IndexedDB para los datos del dominio financiero. */
@@ -28,6 +29,7 @@ export class FinanceAssistantDatabase extends Dexie {
   metadata!: EntityTable<DatabaseMetadataRecord, 'key'>;
   accounts!: EntityTable<FinancialAccountRecord, 'id'>;
   transfers!: EntityTable<AccountTransferRecord, 'id'>;
+  backups!: EntityTable<BackupRecord, 'id'>;
 
   constructor(databaseName = DATABASE_NAME) {
     super(databaseName);
@@ -35,7 +37,8 @@ export class FinanceAssistantDatabase extends Dexie {
     this.version(2).stores(schemaV2).upgrade(migrateV1ToV2);
     this.version(3).stores(schemaV3);
     this.version(4).stores(schemaV4).upgrade(migrateV3ToV4);
-    this.version(CURRENT_DATABASE_VERSION).stores(schemaV5);
+    this.version(5).stores(schemaV5);
+    this.version(CURRENT_DATABASE_VERSION).stores(schemaV6);
   }
 }
 

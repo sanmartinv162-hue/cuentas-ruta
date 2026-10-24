@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Download, Moon, Plus, Sun, Trash2, Upload } from 'lucide-react';
+import { Download, Moon, Plus, RotateCcw, Sun, Trash2, Upload } from 'lucide-react';
 import { downloadBackup, readBackup } from '../database/storage';
 import type { AppData, AppSettings, ThemeMode } from '../types';
 import type { FinancialModule } from '../types/database';
 import { formatCOP, parseCOP } from '../utils/format';
 import { dispatchDueNotifications, getNotificationPermission, readNotificationPreferences, requestNotificationPermission, saveNotificationPreferences, type NotificationPreferences } from '../services/notification.service';
+import { listAutomaticBackups } from '../services/backup.service';
 
 interface Props {
   data: AppData;
@@ -14,9 +15,11 @@ interface Props {
   accounts: { id: string; module: FinancialModule; name: string }[];
   onCreateAccount(module: FinancialModule, name: string): Promise<string | null>;
   onClearToday(): Promise<string | null>;
+  onFactoryReset(): Promise<string | null>;
+  onCreateBackup(): Promise<string | null>;
 }
 
-export function SettingsPage({ data, onSave, onImport, onTheme, accounts, onCreateAccount, onClearToday }: Props) {
+export function SettingsPage({ data, onSave, onImport, onTheme, accounts, onCreateAccount, onClearToday, onFactoryReset, onCreateBackup }: Props) {
   const [settings, setSettings] = useState(data.settings);
   const [goalText, setGoalText] = useState(String(data.settings.dailyGoalCOP));
   const [capitalText, setCapitalText] = useState(String(data.settings.startingCapitalCOP));
@@ -29,7 +32,12 @@ export function SettingsPage({ data, onSave, onImport, onTheme, accounts, onCrea
   const [saving, setSaving] = useState(false);
   const [notifications, setNotifications] = useState<NotificationPreferences>(() => readNotificationPreferences());
   const [notificationPermission, setNotificationPermission] = useState(getNotificationPermission);
+  const [automaticBackups, setAutomaticBackups] = useState<{ id: string; createdAt: string }[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    void listAutomaticBackups().then((backups) => setAutomaticBackups(backups.map(({ id, createdAt }) => ({ id, createdAt })))).catch(() => setAutomaticBackups([]));
+  }, [data]);
 
   async function addAccount() {
     const clean = newAccountName.trim();
@@ -113,6 +121,27 @@ export function SettingsPage({ data, onSave, onImport, onTheme, accounts, onCrea
     setFeedback(result ? null : 'Se limpiaron los registros de hoy; los datos anteriores se conservaron.');
   }
 
+  async function createBackup() {
+    setSaving(true);
+    const result = await onCreateBackup();
+    setSaving(false);
+    setError(result);
+    setFeedback(result ? null : 'Copia automática creada. Se conservará durante 3 días.');
+    if (!result) {
+      const backups = await listAutomaticBackups().catch(() => []);
+      setAutomaticBackups(backups.map(({ id, createdAt }) => ({ id, createdAt })));
+    }
+  }
+
+  async function factoryReset() {
+    if (!window.confirm('Se creará un respaldo automático y luego se eliminarán todos los movimientos, jornadas, cuentas y configuraciones. Esta acción no se puede deshacer. ¿Continuar?')) return;
+    setSaving(true);
+    const result = await onFactoryReset();
+    setSaving(false);
+    setError(result);
+    setFeedback(result ? null : 'El proyecto volvió a los valores de fábrica.');
+  }
+
   async function updateNotifications(next: NotificationPreferences) {
     if (next.enabled) {
       const permission = await requestNotificationPermission();
@@ -166,7 +195,8 @@ export function SettingsPage({ data, onSave, onImport, onTheme, accounts, onCrea
         <button className="button primary-button settings-save" type="submit" disabled={saving}>{saving ? 'Guardando…' : 'Guardar ajustes'}</button>
       </form>
       <section className="settings-section backup-section"><div className="settings-title"><div><p className="eyebrow">REGISTROS DE HOY</p><h2>Limpiar el día</h2></div></div><p>Marca como eliminados los movimientos, ahorros, transferencias, metas y jornadas de hoy. Los días anteriores y los capitales iniciales se conservan.</p><button className="button outline-button delete-action" type="button" onClick={() => void clearTodayRecords()} disabled={saving}>Poner en 0 lo de hoy</button></section>
-      <section className="settings-section backup-section"><div className="settings-title"><div><p className="eyebrow">TUS DATOS</p><h2>Respaldo local</h2></div></div><p>Exporta una copia completa para conservarla fuera del navegador. La información permanece en este dispositivo hasta que la exportes.</p><div className="backup-actions"><button className="button outline-button" onClick={() => downloadBackup(data)}><Download size={16} /> Exportar respaldo</button><button className="button outline-button" onClick={() => fileInput.current?.click()}><Upload size={16} /> Restaurar respaldo</button><input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={(event) => void restore(event.target.files?.[0])} /></div><p className="backup-count">{data.movements.length} movimientos · {data.workdays.length} jornadas · saldo de ahorro {formatCOP(data.savings.reduce((sum, item) => sum + (item.kind === 'deposit' ? item.amountCOP : -item.amountCOP), 0))}</p></section>
+      <section className="settings-section backup-section"><div className="settings-title"><div><p className="eyebrow">TUS DATOS</p><h2>Respaldo local</h2></div></div><p>La aplicación crea una copia automática al cargar o guardar datos y conserva las copias de los últimos 3 días; las anteriores se eliminan automáticamente.</p><div className="backup-actions"><button className="button outline-button" type="button" onClick={() => void createBackup()} disabled={saving}><RotateCcw size={16} /> Crear copia ahora</button><button className="button outline-button" type="button" onClick={() => downloadBackup(data)} disabled={saving}><Download size={16} /> Exportar respaldo</button><button className="button outline-button" type="button" onClick={() => fileInput.current?.click()} disabled={saving}><Upload size={16} /> Restaurar respaldo</button><input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={(event) => void restore(event.target.files?.[0])} /></div><p className="backup-count">{automaticBackups.length} copias automáticas vigentes · {data.movements.length} movimientos · {data.workdays.length} jornadas · saldo de ahorro {formatCOP(data.savings.reduce((sum, item) => sum + (item.kind === 'deposit' ? item.amountCOP : -item.amountCOP), 0))}</p></section>
+      <section className="settings-section backup-section"><div className="settings-title"><div><p className="eyebrow">RECUPERACIÓN</p><h2>Restablecer proyecto</h2></div></div><p>Conserva el respaldo automático actual y devuelve la aplicación a sus cuentas, capital y configuraciones iniciales.</p><button className="button outline-button delete-action" type="button" onClick={() => void factoryReset()} disabled={saving}><RotateCcw size={16} /> Restablecer todo de fábrica</button></section>
       <section className="settings-section"><div className="settings-title"><div><p className="eyebrow">APLICACIÓN</p><h2>Información de la aplicación</h2></div></div><div className="settings-row"><div><strong>MI BILLETERA</strong><p>Finanzas personales y control del negocio de domicilios.</p></div><span className="result-count">Versión 1.0.0</span></div><div className="settings-row"><div><strong>Almacenamiento</strong><p>Los datos se guardan localmente en este dispositivo.</p></div><span className="result-count">IndexedDB</span></div></section>
     </div>
   );

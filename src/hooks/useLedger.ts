@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createEmptyData } from '../models/defaults';
 import { financeApplicationService } from '../services/application.service';
+import { createAutomaticBackup } from '../services/backup.service';
 import { savingsBalance } from '../services/ledger';
 import type { AppData, AppSettings, LedgerSpace, MovementDraft } from '../types';
 import type { FinancialModule } from '../types/database';
@@ -23,6 +24,8 @@ export interface LedgerActions {
   updateSettings(settings: AppSettings): Promise<string | null>;
   importData(data: AppData): Promise<string | null>;
   clearTodayRecords(): Promise<string | null>;
+  factoryReset(): Promise<string | null>;
+  createBackup(): Promise<string | null>;
 }
 
 export function useLedger(): { data: AppData; loading: boolean; error: string | null; actions: LedgerActions } {
@@ -41,11 +44,17 @@ export function useLedger(): { data: AppData; loading: boolean; error: string | 
     return () => { mounted = false; };
   }, []);
 
-  const execute = useCallback(async (operation: () => Promise<string | null>): Promise<string | null> => {
+  const execute = useCallback(async (operation: () => Promise<string | null>, options: { backupBefore?: boolean } = {}): Promise<string | null> => {
     try {
+      if (options.backupBefore !== false) {
+        const previous = await financeApplicationService.snapshot();
+        await createAutomaticBackup(previous);
+      }
       const problem = await operation();
       if (problem) return problem;
-      setData(await financeApplicationService.snapshot());
+      const next = await financeApplicationService.snapshot();
+      await createAutomaticBackup(next);
+      setData(next);
       setError(null);
       return null;
     } catch (cause) {
@@ -73,6 +82,8 @@ export function useLedger(): { data: AppData; loading: boolean; error: string | 
     updateSettings: (settings) => execute(() => financeApplicationService.updateSettings(settings)),
     importData: (data) => execute(() => financeApplicationService.restoreBackup(data)),
     clearTodayRecords: () => execute(() => financeApplicationService.clearTodayRecords()),
+    factoryReset: () => execute(() => financeApplicationService.resetToFactory(), { backupBefore: false }),
+    createBackup: () => execute(() => financeApplicationService.createBackup()),
   }), [execute]);
 
   return { data, loading, error, actions };
