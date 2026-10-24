@@ -185,11 +185,11 @@ export class LegacyDataService {
       if (found && id) idMaps[module].set(id, found.id);
       return found?.id;
     };
-    const remapValues = (values: Record<string, number> | undefined, label: string): Record<string, number> | undefined => {
+    const remapValues = (values: Record<string, number> | undefined, module: 'personal' | 'business', label: string): Record<string, number> | undefined => {
       if (!values) return undefined;
       const result: Record<string, number> = {};
       for (const [sourceId, amount] of Object.entries(values)) {
-        const targetId = resolveAccount('business', sourceId);
+        const targetId = resolveAccount(module, sourceId);
         if (!targetId || !Number.isSafeInteger(amount) || amount < 0) throw new ServiceError('VALIDATION', `${label} contiene una cuenta o saldo inválido.`);
         result[targetId] = (result[targetId] ?? 0) + amount;
       }
@@ -227,10 +227,10 @@ export class LegacyDataService {
 
     const workdays: Workday[] = data.workdays.map((workday) => ({
       ...workday,
-      initialCapitalByAccount: remapValues(workday.initialCapitalByAccount, `La jornada ${workday.id}`),
-      finalCapitalByAccount: remapValues(workday.finalCapitalByAccount, `La jornada ${workday.id}`),
-      incomeByAccount: remapValues(workday.incomeByAccount, `La jornada ${workday.id}`),
-      expensesByAccount: remapValues(workday.expensesByAccount, `La jornada ${workday.id}`),
+      initialCapitalByAccount: remapValues(workday.initialCapitalByAccount, 'business', `La jornada ${workday.id}`),
+      finalCapitalByAccount: remapValues(workday.finalCapitalByAccount, 'business', `La jornada ${workday.id}`),
+      incomeByAccount: remapValues(workday.incomeByAccount, 'business', `La jornada ${workday.id}`),
+      expensesByAccount: remapValues(workday.expensesByAccount, 'business', `La jornada ${workday.id}`),
     }));
     if (new Set(workdays.map((workday) => workday.id)).size !== workdays.length) throw new ServiceError('VALIDATION', 'El respaldo contiene IDs de jornada duplicados.');
     if (workdays.filter((workday) => workday.endedAt === null).length > 1) throw new ServiceError('VALIDATION', 'El respaldo contiene más de una jornada abierta.');
@@ -265,8 +265,8 @@ export class LegacyDataService {
       movement.workdayId = reconstructed.id;
     }
 
-    const businessInitialCapitalByAccount = remapValues(data.settings.businessInitialCapitalByAccount, 'El capital inicial');
-    const personalInitialCapitalByAccount = remapValues(data.settings.personalInitialCapitalByAccount, 'El capital inicial personal');
+    const businessInitialCapitalByAccount = remapValues(data.settings.businessInitialCapitalByAccount, 'business', 'El capital inicial');
+    const personalInitialCapitalByAccount = remapValues(data.settings.personalInitialCapitalByAccount, 'personal', 'El capital inicial personal');
     const normalized: AppData = {
       ...data,
       movements,

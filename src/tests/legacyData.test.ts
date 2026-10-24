@@ -66,6 +66,26 @@ describe('importación de la base anterior', () => {
 });
 
 describe('integridad al restaurar respaldos', () => {
+  it('restaura el capital inicial personal usando las cuentas personales', async () => {
+    const personalCashId = uuid();
+    const personalNequiId = uuid();
+    const businessCashId = uuid();
+    data.settings.personalInitialCapitalByAccount = { [personalCashId]: 12_000, [personalNequiId]: 8_000 };
+    data.settings.businessInitialCapitalByAccount = { [businessCashId]: 5_000 };
+    data.accountBalances = {
+      personal: { total: 40_000, accounts: [
+        { id: personalCashId, name: 'Efectivo', balance: 12_000 }, { id: personalNequiId, name: 'Nequi', balance: 28_000 },
+      ] },
+      deliveries: { total: 18_000, accounts: [{ id: businessCashId, name: 'Efectivo', balance: 18_000 }] },
+    };
+
+    expect(await importer.import(data, true)).toMatchObject({ ok: true, value: true });
+    await expect(database.settings.get('global')).resolves.toMatchObject({
+      personalInitialCapitalByAccount: { [personalCashId]: 12_000, [personalNequiId]: 8_000 },
+      businessInitialCapitalByAccount: { [businessCashId]: 5_000 },
+    });
+  });
+
   it('consolida cuentas duplicadas, conserva capital y reconstruye jornada ausente', async () => {
     const danglingJourneyId = uuid();
     data.workdays = [];
