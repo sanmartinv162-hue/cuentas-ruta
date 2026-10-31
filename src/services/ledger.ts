@@ -34,9 +34,15 @@ export function buildDeliveryFeeSummary(movements: DeliveryFeeEntry[], now = new
   const weekReservedCOP = reserved
     .filter((movement) => new Date(movement.occurredAt) >= monday && new Date(movement.occurredAt) <= now)
     .reduce((sum, movement) => sum + (movement.deliveryFeeReserveCOP ?? 0), 0);
+  const weekPaidCOP = payments
+    .filter((movement) => new Date(movement.occurredAt) >= monday && new Date(movement.occurredAt) <= now)
+    .reduce((sum, movement) => sum + movement.amountCOP, 0);
   const totalReservedCOP = reserved.reduce((sum, movement) => sum + (movement.deliveryFeeReserveCOP ?? 0), 0);
   const totalPaidCOP = payments.reduce((sum, movement) => sum + movement.amountCOP, 0);
-  return { weekReservedCOP, outstandingCOP: Math.max(totalReservedCOP - totalPaidCOP, 0) };
+  return {
+    weekReservedCOP: Math.max(weekReservedCOP - weekPaidCOP, 0),
+    outstandingCOP: Math.max(totalReservedCOP - totalPaidCOP, 0),
+  };
 }
 
 export interface NovemberGoalSummary {

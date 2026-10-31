@@ -19,8 +19,20 @@ describe('cálculos del libro', () => {
       { ...entry('deliveries', 'income', 40_000, '2026-10-30T10:00:00.000Z'), deliveryFeeReserveCOP: 6_000, deletedAt: '2026-10-31T10:00:00.000Z' },
     ];
     expect(buildDeliveryFeeSummary(movements, new Date('2026-10-31T12:00:00.000Z'))).toEqual({
-      weekReservedCOP: 15_000,
+      weekReservedCOP: 10_000,
       outstandingCOP: 22_000,
+    });
+  });
+
+  it('pone en cero el apartado de la semana cuando se registra el pago completo', () => {
+    const movements = [
+      { ...entry('deliveries', 'income', 100_000, '2026-10-29T10:00:00.000Z'), deliveryFeeReserveCOP: 15_000 },
+      { ...entry('deliveries', 'income', 80_000, '2026-10-20T10:00:00.000Z'), deliveryFeeReserveCOP: 12_000 },
+      { ...entry('deliveries', 'expense', 27_000, '2026-10-31T10:00:00.000Z'), deliveryFeePayment: true },
+    ];
+    expect(buildDeliveryFeeSummary(movements, new Date('2026-10-31T12:00:00.000Z'))).toEqual({
+      weekReservedCOP: 0,
+      outstandingCOP: 0,
     });
   });
 

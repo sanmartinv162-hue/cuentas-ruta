@@ -12,6 +12,7 @@ export interface AppRuntime {
   editMovement(movement: Movement): void;
   startJourney(initialCapitalCOP: number): Promise<string | null>;
   requestCloseJourney(): void;
+  requestDeliveryFeePayment(): void;
   setThemeMode(theme: ThemeMode): void;
 }
 

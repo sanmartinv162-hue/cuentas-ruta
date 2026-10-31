@@ -18,6 +18,7 @@ export function DeliveryFeePaymentDialog({ accounts, outstandingCOP, onPay, onCl
   const [accountId, setAccountId] = useState(accounts.find((account) => account.name.toLocaleLowerCase('es-CO') === 'efectivo')?.id ?? accounts[0]?.id ?? '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const isFullPayment = parseCOP(amountText) === outstandingCOP;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,7 +56,7 @@ export function DeliveryFeePaymentDialog({ accounts, outstandingCOP, onPay, onCl
         {error && <p className="form-error" role="alert">{error}</p>}
         <footer className="dialog-actions">
           <button className="button quiet-button" type="button" onClick={onClose} disabled={saving}>Cancelar</button>
-          <button className="button primary-button" type="submit" disabled={saving || !accounts.length}>{saving ? 'Guardando…' : 'Registrar pago'}</button>
+          <button className="button primary-button" type="submit" disabled={saving || !accounts.length}>{saving ? 'Guardando…' : isFullPayment ? 'Pagar todo el apartado' : 'Registrar pago parcial'}</button>
         </footer>
       </form>
     </section>

@@ -7,13 +7,17 @@ import { AppProviders } from './app/AppProviders';
 import { AppRoutes } from './routes';
 import { Toast } from './components/ui/Toast';
 import { dispatchDueNotifications } from './services/notification.service';
+import { DeliveryFeePaymentDialog } from './components/dialogs/DeliveryFeePaymentDialog';
+import { buildDeliveryFeeSummary } from './services/ledger';
 
 export default function App() {
   const { data, loading, error, actions } = useLedger();
   const [editor, setEditor] = useState<{ space: LedgerSpace; kind: MovementKind; existing?: Movement } | null>(null);
   const [closing, setClosing] = useState(false);
+  const [deliveryFeePaymentOpen, setDeliveryFeePaymentOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const activeWorkday = data.workdays.find((workday) => workday.endedAt === null);
+  const deliveryFeeSummary = buildDeliveryFeeSummary(data.movements);
 
   useEffect(() => {
     document.documentElement.dataset.theme = data.settings.theme;
@@ -26,6 +30,12 @@ export default function App() {
   async function closeWorkday(amountCOP: number, note: string, accountId?: string) {
     const result = await actions.closeWorkday(amountCOP, note, accountId);
     if (!result) setToast('Cierre guardado y ahorro actualizado.');
+    return result;
+  }
+
+  async function payDeliveryFee(amountCOP: number, accountId: string) {
+    const result = await actions.payDeliveryFee(amountCOP, accountId);
+    if (!result) setToast('Pago semanal al líder registrado.');
     return result;
   }
 
@@ -50,6 +60,7 @@ export default function App() {
     editMovement: (movement: Movement) => setEditor({ space: movement.space, kind: movement.kind, existing: movement }),
     startJourney: actions.startWorkday,
     requestCloseJourney: () => setClosing(true),
+    requestDeliveryFeePayment: () => setDeliveryFeePaymentOpen(true),
     setThemeMode,
   }), [actions, data, error, loading]);
 
@@ -59,6 +70,7 @@ export default function App() {
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
       {editor && <MovementDialog space={editor.space} kind={editor.kind} existing={editor.existing} settings={data.settings} accounts={data.accountBalances?.[editor.space].accounts ?? []} onSave={saveMovement} onClose={() => setEditor(null)} />}
       {closing && activeWorkday && <WorkdayClosingDialog workday={activeWorkday} accounts={data.accountBalances?.deliveries.accounts ?? []} workdays={data.workdays} movements={data.movements} goalCOP={data.settings.dailyGoalCOP} onCloseDay={closeWorkday} onDismiss={() => setClosing(false)} />}
+      {deliveryFeePaymentOpen && deliveryFeeSummary.outstandingCOP > 0 && <DeliveryFeePaymentDialog accounts={data.accountBalances?.deliveries.accounts ?? []} outstandingCOP={deliveryFeeSummary.outstandingCOP} onPay={payDeliveryFee} onClose={() => setDeliveryFeePaymentOpen(false)} />}
     </AppProviders>
   );
 }

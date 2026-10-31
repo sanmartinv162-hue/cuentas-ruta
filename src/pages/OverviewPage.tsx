@@ -12,6 +12,7 @@ interface Props {
   onNew(space: LedgerSpace, kind: MovementKind): void;
   onStartWorkday(initialCapitalCOP: number): Promise<string | null>;
   onFinishWorkday(): void;
+  onPayDeliveryFee(): void;
   onOpenHistory(): void;
   onOpenPersonal(): void;
   onOpenBusiness(): void;
@@ -19,7 +20,7 @@ interface Props {
   onNavigate(path: string): void;
 }
 
-export function OverviewPage({ data, onNew, onStartWorkday, onFinishWorkday, onOpenHistory, onOpenPersonal, onOpenBusiness, onEdit, onNavigate }: Props) {
+export function OverviewPage({ data, onNew, onStartWorkday, onFinishWorkday, onPayDeliveryFee, onOpenHistory, onOpenPersonal, onOpenBusiness, onEdit, onNavigate }: Props) {
   const summary = buildDashboardSummary(data);
   const workday = summary.activeWorkday;
   const accountBalances = data.accountBalances;
@@ -78,7 +79,9 @@ export function OverviewPage({ data, onNew, onStartWorkday, onFinishWorkday, onO
         <div><p className="eyebrow">APARTADO SEMANAL · 15% DE LOS INGRESOS</p><h2>Pago al líder</h2></div>
         <div><span>Separado esta semana</span><strong>{formatCOP(deliveryFeeSummary.weekReservedCOP)}</strong></div>
         <div><span>Pendiente por pagar</span><strong>{formatCOP(deliveryFeeSummary.outstandingCOP)}</strong></div>
-        <p>Se acumula para pagar el lunes; el pendiente continúa hasta que registres el pago en el negocio.</p>
+        <p>El valor separado se reduce al registrar el pago y llega a $0 al pagar todo el pendiente.</p>
+        <button className="button outline-button" type="button" onClick={onPayDeliveryFee} disabled={!workday || deliveryFeeSummary.outstandingCOP === 0}>Pagar todo el apartado</button>
+        {!workday && deliveryFeeSummary.outstandingCOP > 0 && <small>Inicia una jornada para registrar el pago.</small>}
       </section>
 
       <GlobalSearch data={data} onEdit={onEdit} onNavigate={onNavigate} />
