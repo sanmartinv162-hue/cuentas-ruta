@@ -49,6 +49,8 @@ export interface BusinessMovementRecord extends SoftDeletableRecord, SyncFields 
   accountId?: string;
   journeyId: string;
   deliveryCount?: number;
+  deliveryFeeReserveCOP?: number;
+  deliveryFeePayment?: boolean;
   type: MovementType;
   amount: number;
   description: string;

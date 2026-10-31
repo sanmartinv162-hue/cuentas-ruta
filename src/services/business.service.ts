@@ -7,6 +7,7 @@ import { identityProvider, type IdentityProvider } from '../utils/identity';
 import { classificationService, type ClassificationService } from './classification.service';
 import { executeService, ServiceError, unwrapServiceResult, type ServiceResult } from './serviceResult';
 import { financialAccountService, type FinancialAccountService } from './financialAccount.service';
+import { buildDeliveryFeeSummary } from './ledger';
 
 export class BusinessService {
   constructor(
@@ -26,6 +27,20 @@ export class BusinessService {
       const activeJourneys = (await this.journeys.findAll()).filter((journey) => journey.status === 'active');
       if (activeJourneys.length !== 1) throw new ServiceError('VALIDATION', activeJourneys.length ? 'Hay más de una jornada activa; corrige el estado antes de registrar.' : 'Inicia una jornada antes de registrar movimientos del negocio.');
       const value = await this.withAccount(parsed.data);
+      if (value.deliveryFeePayment) {
+        const movements = await this.repository.findAll();
+        const reserve = buildDeliveryFeeSummary(movements.map((movement) => ({
+          kind: movement.type,
+          amountCOP: movement.amount,
+          occurredAt: movement.date,
+          deliveryFeeReserveCOP: movement.deliveryFeeReserveCOP,
+          deliveryFeePayment: movement.deliveryFeePayment,
+          deletedAt: movement.deletedAt,
+        })), this.now());
+        if (value.amount > reserve.outstandingCOP) {
+          throw new ServiceError('VALIDATION', `El pago no puede superar los ${reserve.outstandingCOP} COP pendientes del apartado.`);
+        }
+      }
       const match = value.type === 'expense' ? unwrapServiceResult(await this.classifier.classify(value.description, 'deliveries')) : null;
       const category = value.detectedCategory || match?.category || '';
       if (value.type === 'expense' && value.detectedCategory && value.detectedCategory !== match?.category) {
@@ -37,6 +52,7 @@ export class BusinessService {
         id: this.identity.createId(),
         journeyId: activeJourneys[0].id,
         deliveryCount: value.type === 'income' ? 1 : 0,
+        deliveryFeeReserveCOP: value.type === 'income' ? Math.round(value.amount * 0.15) : undefined,
         detectedCategory: category,
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -58,6 +74,26 @@ export class BusinessService {
       const current = await this.repository.findById(id);
       if (!current) throw new ServiceError('NOT_FOUND', 'No se encontró el movimiento del negocio.');
       const merged = await this.withAccount({ ...current, ...parsed.data }, current);
+      if (merged.deliveryFeePayment && merged.type !== 'expense') {
+        throw new ServiceError('VALIDATION', 'El pago del apartado debe permanecer como un gasto.');
+      }
+      if (merged.deliveryFeePayment) {
+        const movements = (await this.repository.findAll()).filter((movement) => movement.id !== id);
+        const reserve = buildDeliveryFeeSummary(movements.map((movement) => ({
+          kind: movement.type,
+          amountCOP: movement.amount,
+          occurredAt: movement.date,
+          deliveryFeeReserveCOP: movement.deliveryFeeReserveCOP,
+          deliveryFeePayment: movement.deliveryFeePayment,
+          deletedAt: movement.deletedAt,
+        })), this.now());
+        if (merged.amount > reserve.outstandingCOP) {
+          throw new ServiceError('VALIDATION', `El pago no puede superar los ${reserve.outstandingCOP} COP pendientes del apartado.`);
+        }
+      }
+      merged.deliveryFeeReserveCOP = merged.type === 'income' && (
+        current.deliveryFeeReserveCOP !== undefined || (parsed.data.type === 'income' && current.type !== 'income')
+      ) ? Math.round(merged.amount * 0.15) : undefined;
       if (merged.type === 'expense' && !parsed.data.detectedCategory && parsed.data.description) {
         merged.detectedCategory = unwrapServiceResult(await this.classifier.classify(merged.description, 'deliveries'))?.category ?? current.detectedCategory;
       }

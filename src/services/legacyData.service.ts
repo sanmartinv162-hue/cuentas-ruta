@@ -328,6 +328,7 @@ export class LegacyDataService {
     const parsed = businessMovementSchema.safeParse({
       id: movement.id, journeyId, accountId: movement.accountId && accounts.some((item) => item.id === movement.accountId) ? movement.accountId : account.id, type: movement.kind, amount: movement.amountCOP,
       description: movement.description, paymentMethod: account.name, detectedCategory: movement.category,
+      deliveryFeeReserveCOP: movement.deliveryFeeReserveCOP, deliveryFeePayment: movement.deliveryFeePayment,
       date: movement.occurredAt, createdAt: movement.occurredAt, updatedAt: timestamp, deletedAt: movement.deletedAt ?? null,
       version: 1, synced: false, syncVersion: 0, deviceId,
     });

@@ -20,6 +20,8 @@ export interface Movement {
   category: string;
   deliveryCount: number;
   workdayId: string | null;
+  deliveryFeeReserveCOP?: number;
+  deliveryFeePayment?: boolean;
 }
 
 export interface Workday {

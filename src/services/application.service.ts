@@ -92,6 +92,7 @@ export class FinanceApplicationService {
         id: record.id, space: 'deliveries' as const, kind: record.type, amountCOP: record.amount,
         description: record.description, occurredAt: record.date, paymentMethod: record.paymentMethod,
         accountId: record.accountId, category: record.detectedCategory, deliveryCount: record.deliveryCount ?? 0,
+        deliveryFeeReserveCOP: record.deliveryFeeReserveCOP, deliveryFeePayment: record.deliveryFeePayment,
         workdayId: record.journeyId, deletedAt: record.deletedAt ?? null,
         transferId: record.transferId, internalTransfer: record.internalTransfer,
       })),
@@ -174,6 +175,25 @@ export class FinanceApplicationService {
     if (!result.ok) return result.error.message;
     await this.learnManualCategory(draft);
     await this.recalculateBusiness(draft.space === 'deliveries', draft.occurredAt);
+    return null;
+  }
+
+  async payDeliveryFee(amountCOP: number, accountId: string): Promise<string | null> {
+    const accounts = serviceValue(await financialAccountService.list('business'));
+    const account = accounts.find((item) => item.id === accountId);
+    if (!account) return 'Selecciona una cuenta del negocio existente.';
+    const result = await businessService.create({
+      type: 'expense',
+      amount: amountCOP,
+      description: 'Pago semanal al líder por domicilios',
+      paymentMethod: account.name,
+      accountId: account.id,
+      detectedCategory: 'Pago al líder',
+      date: new Date().toISOString(),
+      deliveryFeePayment: true,
+    });
+    if (!result.ok) return result.error.message;
+    await this.recalculateBusiness(true);
     return null;
   }
 

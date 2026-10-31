@@ -13,10 +13,13 @@ import { TransferHistory } from '../../components/ui/TransferHistory';
 import { availableBusinessCapital, goalProgress, savingsBalance, totalsFor } from '../../services/ledger';
 import { formatCOP } from '../../utils/format';
 import { BusinessJourneySummaries } from '../../components/ui/BusinessJourneySummaries';
+import { DeliveryFeePaymentDialog } from '../../components/dialogs/DeliveryFeePaymentDialog';
+import { buildDeliveryFeeSummary } from '../../services/ledger';
 
 export default function BusinessPage() {
   const { data, openMovement, notify, editMovement, actions, startJourney, loading } = useAppRuntime();
   const [transferOpen, setTransferOpen] = useState(false);
+  const [deliveryFeePaymentOpen, setDeliveryFeePaymentOpen] = useState(false);
   const today = new Date().toDateString();
   const todayMovements = data.movements.filter((movement) => !movement.deletedAt && movement.space === 'deliveries' && new Date(movement.occurredAt).toDateString() === today);
   const todayTotals = totalsFor(todayMovements);
@@ -24,6 +27,7 @@ export default function BusinessPage() {
   const lastJourney = activeJourney ?? [...data.workdays].reverse().find((workday) => !workday.deletedAt);
   const capital = lastJourney ? availableBusinessCapital(lastJourney, data.movements) : data.settings.startingCapitalCOP;
   const savings = savingsBalance(data.savings);
+  const deliveryFeeSummary = buildDeliveryFeeSummary(data.movements);
 
   async function start(initialCapitalCOP: number) {
     const error = await startJourney(initialCapitalCOP);
@@ -31,10 +35,17 @@ export default function BusinessPage() {
     return error;
   }
 
+  async function payDeliveryFee(amountCOP: number, accountId: string) {
+    const error = await actions.payDeliveryFee(amountCOP, accountId);
+    if (!error) notify('Pago semanal al líder registrado.');
+    return error;
+  }
+
   return <div className="page-content">
     <div className="page-heading"><div><p className="eyebrow">ESPACIO 02</p><h1>Negocio de domicilios</h1></div><div className="business-page-heading-actions">{activeJourney ? <Link className="shift-badge shift-active" to="/business/journey">Jornada activa</Link> : <><span className="shift-badge">Jornada cerrada</span><StartJourneyButton className="button outline-button" availableCapital={data.accountBalances?.deliveries.total ?? 0} onStart={start} disabled={loading} /></>}</div></div>
     <Section title="Capital" eyebrow="RESUMEN"><div className="stat-grid"><StatCard label="Capital total" value={formatCOP(data.accountBalances?.deliveries.total ?? capital)} icon={<Bike size={18} />} />{data.accountBalances?.deliveries.accounts.map((account) => <StatCard key={account.id} label={`Capital en ${account.name}`} value={formatCOP(account.balance)} icon={<Bike size={18} />} />)}<StatCard label="Ahorro" value={formatCOP(savings)} icon={<PiggyBank size={18} />} /><StatCard label="Utilidad acumulada" value={formatCOP(data.businessProfitCOP ?? 0)} icon={<Clock3 size={18} />} /><StatCard label="Meta diaria" value={formatCOP(data.dailyGoal?.goal ?? data.settings.dailyGoalCOP)} icon={<Target size={18} />} /></div></Section>
     <Section title="Meta diaria" eyebrow="OBJETIVO"><div className="goal-card"><div><strong>{formatCOP(todayTotals.incomeCOP)}</strong><span> de {formatCOP(data.settings.dailyGoalCOP)}</span></div><ProgressBar value={goalProgress(todayTotals.incomeCOP, data.settings.dailyGoalCOP)} label="Avance de ingresos" /></div></Section>
+    <Section title="Apartado para el líder" eyebrow="15% DE CADA INGRESO"><div className="delivery-fee-panel"><div><span>Separado esta semana</span><strong>{formatCOP(deliveryFeeSummary.weekReservedCOP)}</strong></div><div><span>Pendiente por pagar</span><strong>{formatCOP(deliveryFeeSummary.outstandingCOP)}</strong></div><p>El 15% de cada nuevo ingreso se acumula para pagar el lunes. El pendiente continúa hasta que registres el pago.</p><button className="button outline-button" type="button" onClick={() => setDeliveryFeePaymentOpen(true)} disabled={loading || !activeJourney || deliveryFeeSummary.outstandingCOP === 0}>Registrar pago semanal</button>{!activeJourney && deliveryFeeSummary.outstandingCOP > 0 && <small>Inicia una jornada para registrar el pago como gasto del negocio.</small>}</div></Section>
     <Section title="Jornada" eyebrow="ESTADO ACTUAL" action={<Link className="text-action" to="/business/journey">Ver jornada</Link>}><div className="quick-action-panel"><p>{activeJourney ? `Iniciada ${new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(activeJourney.startedAt))}` : 'No hay una jornada en curso.'}</p></div></Section>
     <Section title="Movimientos" eyebrow="REGISTRO DE HOY"><div className="business-actions"><SecondaryButton icon={<ArrowDownLeft size={16} />} onClick={() => openMovement('deliveries', 'income')}>Registrar ingreso</SecondaryButton><SecondaryButton icon={<ArrowUpRight size={16} />} onClick={() => openMovement('deliveries', 'expense')}>Registrar gasto</SecondaryButton><SecondaryButton icon={<ArrowRightLeft size={16} />} onClick={() => setTransferOpen(true)}>Transferir entre cuentas</SecondaryButton></div><p className="section-footnote">{todayMovements.length} movimientos registrados hoy.</p></Section>
     <Section title="Historial de movimientos" eyebrow="BUSCAR Y FILTRAR"><HistoryPage movements={data.movements} initialSpace="deliveries" onEdit={editMovement} onDelete={actions.deleteMovement} onRestore={actions.restoreMovement} /></Section>
@@ -43,5 +54,6 @@ export default function BusinessPage() {
     <Section title="Ahorro" eyebrow="BOLSILLO SEPARADO" action={<Link className="text-action" to="/business/savings">Ver ahorro</Link>}><div className="quick-action-panel"><div><p>Saldo acumulado</p><strong className="business-balance">{formatCOP(savings)}</strong></div><Link className="button outline-button" to="/business/savings">Abrir historial</Link></div></Section>
     <Section title="Historial" eyebrow="JORNADAS"><div className="journey-history-list">{data.workdays.some((workday) => !workday.deletedAt) ? [...data.workdays].filter((workday) => !workday.deletedAt).reverse().slice(0, 4).map((journey) => <div className="journey-history-row" key={journey.id}><span>{new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium' }).format(new Date(journey.startedAt))}</span><strong>{journey.endedAt ? 'Finalizada' : 'En curso'}</strong></div>) : <p className="section-footnote">Aún no hay jornadas registradas.</p>}</div></Section>
     {transferOpen && <AccountTransferDialog module="business" accounts={[...(data.accountBalances?.personal.accounts ?? []).map((account) => ({ ...account, module: 'personal' as const })), ...(data.accountBalances?.deliveries.accounts ?? []).map((account) => ({ ...account, module: 'business' as const }))]} onSave={actions.transferFunds} onClose={() => setTransferOpen(false)} />}
+    {deliveryFeePaymentOpen && <DeliveryFeePaymentDialog accounts={data.accountBalances?.deliveries.accounts ?? []} outstandingCOP={deliveryFeeSummary.outstandingCOP} onPay={payDeliveryFee} onClose={() => setDeliveryFeePaymentOpen(false)} />}
   </div>;
 }

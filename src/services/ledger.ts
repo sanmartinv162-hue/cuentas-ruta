@@ -13,6 +13,68 @@ export function savingsBalance(movements: { kind: 'deposit' | 'withdrawal'; amou
     .reduce((balance, movement) => balance + (movement.kind === 'deposit' ? movement.amountCOP : -movement.amountCOP), 0);
 }
 
+export interface DeliveryFeeEntry {
+  kind: 'income' | 'expense';
+  amountCOP: number;
+  occurredAt: string;
+  deliveryFeeReserveCOP?: number;
+  deliveryFeePayment?: boolean;
+  deletedAt?: string | null;
+}
+
+export function buildDeliveryFeeSummary(movements: DeliveryFeeEntry[], now = new Date()): {
+  weekReservedCOP: number;
+  outstandingCOP: number;
+} {
+  const active = movements.filter((movement) => !movement.deletedAt);
+  const reserved = active.filter((movement) => movement.kind === 'income' && movement.deliveryFeeReserveCOP !== undefined);
+  const payments = active.filter((movement) => movement.kind === 'expense' && movement.deliveryFeePayment);
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const weekReservedCOP = reserved
+    .filter((movement) => new Date(movement.occurredAt) >= monday && new Date(movement.occurredAt) <= now)
+    .reduce((sum, movement) => sum + (movement.deliveryFeeReserveCOP ?? 0), 0);
+  const totalReservedCOP = reserved.reduce((sum, movement) => sum + (movement.deliveryFeeReserveCOP ?? 0), 0);
+  const totalPaidCOP = payments.reduce((sum, movement) => sum + movement.amountCOP, 0);
+  return { weekReservedCOP, outstandingCOP: Math.max(totalReservedCOP - totalPaidCOP, 0) };
+}
+
+export interface NovemberGoalSummary {
+  goalCOP: number;
+  personalCOP: number;
+  businessCOP: number;
+  currentCOP: number;
+  remainingCOP: number;
+  progress: number;
+  daysRemaining: number;
+  dailyNetCOP: number;
+  deadline: Date;
+  deadlinePassed: boolean;
+}
+
+export function buildNovemberGoalSummary(data: AppData, now = new Date()): NovemberGoalSummary {
+  const goalCOP = 1_500_000;
+  const personalCOP = data.accountBalances?.personal.total ?? 0;
+  const businessCOP = data.accountBalances?.deliveries.total ?? 0;
+  const currentCOP = personalCOP + businessCOP;
+  const remainingCOP = Math.max(goalCOP - currentCOP, 0);
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const deadline = new Date(now.getFullYear(), 10, 15);
+  const daysRemaining = Math.max(Math.ceil((deadline.getTime() - today.getTime()) / 86_400_000), 0);
+  return {
+    goalCOP,
+    personalCOP,
+    businessCOP,
+    currentCOP,
+    remainingCOP,
+    progress: Math.min(currentCOP / goalCOP, 1),
+    daysRemaining,
+    dailyNetCOP: remainingCOP > 0 && daysRemaining > 0 ? Math.ceil(remainingCOP / daysRemaining) : 0,
+    deadline,
+    deadlinePassed: today >= deadline && currentCOP < goalCOP,
+  };
+}
+
 export function availableBusinessCapital(workday: Workday, movements: Movement[]): number {
   const scoped = movements.filter((movement) => !movement.deletedAt && movement.space === 'deliveries' && movement.workdayId === workday.id);
   const netChange = scoped.reduce((total, movement) => total + (movement.kind === 'income' ? movement.amountCOP : -movement.amountCOP), 0);

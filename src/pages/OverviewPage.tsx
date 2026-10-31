@@ -4,6 +4,8 @@ import { buildDashboardSummary } from '../services/ledger';
 import { formatCOP } from '../utils/format';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { StartJourneyButton } from '../components/StartJourneyButton';
+import { NovemberGoalCard } from '../components/ui/NovemberGoalCard';
+import { buildDeliveryFeeSummary } from '../services/ledger';
 
 interface Props {
   data: AppData;
@@ -26,6 +28,7 @@ export function OverviewPage({ data, onNew, onStartWorkday, onFinishWorkday, onO
   const todayTotals = summary.businessToday;
   const progress = summary.businessGoalProgress;
   const recent = summary.personalRecent;
+  const deliveryFeeSummary = buildDeliveryFeeSummary(data.movements);
 
   return (
     <div className="page-content">
@@ -68,6 +71,15 @@ export function OverviewPage({ data, onNew, onStartWorkday, onFinishWorkday, onO
           {workday ? <button className="button finish-button shift-button" onClick={onFinishWorkday}><CircleCheck size={15} /> Finalizar jornada</button> : <StartJourneyButton className="button outline-button shift-button" availableCapital={accountBalances?.deliveries.total ?? 0} onStart={onStartWorkday} />}
         </article>
       </div>
+
+      <NovemberGoalCard data={data} />
+
+      <section className="delivery-fee-summary" aria-label="Apartado semanal para el líder">
+        <div><p className="eyebrow">APARTADO SEMANAL · 15% DE LOS INGRESOS</p><h2>Pago al líder</h2></div>
+        <div><span>Separado esta semana</span><strong>{formatCOP(deliveryFeeSummary.weekReservedCOP)}</strong></div>
+        <div><span>Pendiente por pagar</span><strong>{formatCOP(deliveryFeeSummary.outstandingCOP)}</strong></div>
+        <p>Se acumula para pagar el lunes; el pendiente continúa hasta que registres el pago en el negocio.</p>
+      </section>
 
       <GlobalSearch data={data} onEdit={onEdit} onNavigate={onNavigate} />
 

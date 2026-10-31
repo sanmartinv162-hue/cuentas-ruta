@@ -13,6 +13,7 @@ export interface LedgerActions {
   restoreMovement(id: string, space: LedgerSpace): Promise<string | null>;
   startWorkday(initialCapitalCOP: number): Promise<string | null>;
   closeWorkday(transferCOP: number, note: string, accountId?: string): Promise<string | null>;
+  payDeliveryFee(amountCOP: number, accountId: string): Promise<string | null>;
   addSavingsDeposit(amountCOP: number, note: string, accountId?: string): Promise<string | null>;
   addSavingsWithdrawal(amountCOP: number, note: string, accountId?: string): Promise<string | null>;
   deleteSaving(id: string): Promise<string | null>;
@@ -71,6 +72,7 @@ export function useLedger(): { data: AppData; loading: boolean; error: string | 
     restoreMovement: (id, space) => execute(() => financeApplicationService.restoreMovement(id, space)),
     startWorkday: (initialCapitalCOP) => execute(() => financeApplicationService.startJourney(initialCapitalCOP)),
     closeWorkday: (transferCOP, note, accountId) => execute(() => financeApplicationService.closeJourney(transferCOP, note, accountId)),
+    payDeliveryFee: (amountCOP, accountId) => execute(() => financeApplicationService.payDeliveryFee(amountCOP, accountId)),
     addSavingsDeposit: (amountCOP, note, accountId) => execute(() => financeApplicationService.savingDeposit(amountCOP, note, accountId)),
     addSavingsWithdrawal: (amountCOP, note, accountId) => execute(() => financeApplicationService.savingWithdrawal(amountCOP, note, accountId)),
     deleteSaving: (id) => execute(() => financeApplicationService.deleteSaving(id)),

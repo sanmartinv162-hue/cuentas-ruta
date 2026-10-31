@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { classifyDescription, learnCategory } from '../ai/categoryClassifier';
 import { createEmptyData } from '../models/defaults';
-import { availableBusinessCapital, buildDashboardSummary, buildFinancialReportAnalytics, buildReport, buildReportExportRows, goalProgress, remainingForGoal, savingsBalance, searchLedger, totalsFor, validateFinancialIntegrity } from '../services/ledger';
+import { availableBusinessCapital, buildDashboardSummary, buildDeliveryFeeSummary, buildFinancialReportAnalytics, buildNovemberGoalSummary, buildReport, buildReportExportRows, goalProgress, remainingForGoal, savingsBalance, searchLedger, totalsFor, validateFinancialIntegrity } from '../services/ledger';
 import { buildReminders, defaultNotificationPreferences } from '../services/notification.service';
 import type { Movement } from '../types';
 
@@ -11,6 +11,39 @@ const entry = (space: Movement['space'], kind: Movement['kind'], amountCOP: numb
 });
 
 describe('cálculos del libro', () => {
+  it('calcula el apartado semanal y conserva pendiente lo que no se ha pagado', () => {
+    const movements = [
+      { ...entry('deliveries', 'income', 100_000, '2026-10-29T10:00:00.000Z'), deliveryFeeReserveCOP: 15_000 },
+      { ...entry('deliveries', 'income', 80_000, '2026-10-20T10:00:00.000Z'), deliveryFeeReserveCOP: 12_000 },
+      { ...entry('deliveries', 'expense', 5_000, '2026-10-30T10:00:00.000Z'), deliveryFeePayment: true },
+      { ...entry('deliveries', 'income', 40_000, '2026-10-30T10:00:00.000Z'), deliveryFeeReserveCOP: 6_000, deletedAt: '2026-10-31T10:00:00.000Z' },
+    ];
+    expect(buildDeliveryFeeSummary(movements, new Date('2026-10-31T12:00:00.000Z'))).toEqual({
+      weekReservedCOP: 15_000,
+      outstandingCOP: 22_000,
+    });
+  });
+
+  it('usa saldos actuales de ambas cuentas y calcula el neto diario hasta el 15 de noviembre', () => {
+    const data = createEmptyData();
+    data.accountBalances = {
+      personal: { total: 300_000, accounts: [] },
+      deliveries: { total: 450_000, accounts: [] },
+    };
+    data.savings = [{ id: 'savings', kind: 'deposit', amountCOP: 400_000, occurredAt: '2026-10-31T10:00:00.000Z', note: 'No se incluye' }];
+    expect(buildNovemberGoalSummary(data, new Date('2026-10-31T12:00:00.000Z'))).toMatchObject({
+      goalCOP: 1_500_000,
+      personalCOP: 300_000,
+      businessCOP: 450_000,
+      currentCOP: 750_000,
+      remainingCOP: 750_000,
+      progress: 0.5,
+      daysRemaining: 15,
+      dailyNetCOP: 50_000,
+      deadlinePassed: false,
+    });
+  });
+
   it('construye un resumen del dashboard sin contar registros eliminados', () => {
     const data = createEmptyData();
     data.movements = [
@@ -171,4 +204,3 @@ describe('clasificación local', () => {
     expect(classifyDescription('Nueva consulta odontológica', 'deliveries', learned)).toBeNull();
   });
 });
-

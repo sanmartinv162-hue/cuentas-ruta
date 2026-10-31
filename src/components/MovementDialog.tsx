@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { ArrowDownLeft, ArrowUpRight, X } from 'lucide-react';
 import { classifyDescription } from '../ai/categoryClassifier';
-import { localDateTimeValue, parseCOP } from '../utils/format';
+import { formatCOP, localDateTimeValue, parseCOP } from '../utils/format';
 import type { AppSettings, LedgerSpace, Movement, MovementDraft, MovementKind } from '../types';
 
 interface AccountOption { id: string; name: string }
@@ -31,6 +31,9 @@ export function MovementDialog({ space, kind, settings, accounts, existing, onSa
     () => kind === 'expense' ? classifyDescription(description, space, settings) : null,
     [description, kind, settings, space],
   );
+  const deliveryFeeReserveCOP = space === 'deliveries' && kind === 'income'
+    ? Math.round((parseCOP(amountText) ?? 0) * 0.15)
+    : 0;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -80,6 +83,7 @@ export function MovementDialog({ space, kind, settings, accounts, existing, onSa
             <span>Valor</span>
             <div className="amount-input"><b>$</b><input autoFocus inputMode="numeric" value={amountText} onChange={(event) => setAmountText(event.target.value.replace(/[^\d.,]/g, ''))} placeholder="0" aria-label="Valor en pesos colombianos" /></div>
             <small>COP · pesos colombianos</small>
+            {deliveryFeeReserveCOP > 0 && <small className="delivery-fee-hint">Se apartarán {formatCOP(deliveryFeeReserveCOP)} (15%) para el pago semanal.</small>}
           </label>
           <label className="field">
             <span>Descripción</span>

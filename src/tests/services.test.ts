@@ -178,6 +178,30 @@ describe('servicios de dominio', () => {
     expect(await capitalService.calculate()).toMatchObject({ ok: true, value: { currentCapital: 150_000, availableCapital: 120_000, totalSavings: 30_000, totalProfit: 100_000 } });
   });
 
+  it('aparta 15% por ingreso, permite pagar parcialmente y limita el pago al pendiente', async () => {
+    await settingsService.update({ businessInitialCapital: 100_000 });
+    const started = await journeyService.start();
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+
+    const income = await businessService.create({
+      type: 'income', amount: 100_001, description: 'Domicilio de prueba', paymentMethod: 'Efectivo', date: now.toISOString(),
+    });
+    expect(income).toMatchObject({ ok: true, value: { deliveryFeeReserveCOP: 15_000 } });
+    if (!income.ok) return;
+
+    const updated = await businessService.update(income.value.id, { amount: 200_000 });
+    expect(updated).toMatchObject({ ok: true, value: { deliveryFeeReserveCOP: 30_000 } });
+    expect(await businessService.create({
+      type: 'expense', amount: 30_001, description: 'Pago al líder', paymentMethod: 'Efectivo', date: now.toISOString(), deliveryFeePayment: true,
+    })).toMatchObject({ ok: false, error: { code: 'VALIDATION' } });
+
+    const payment = await businessService.create({
+      type: 'expense', amount: 12_000, description: 'Pago al líder', paymentMethod: 'Efectivo', date: now.toISOString(), deliveryFeePayment: true,
+    });
+    expect(payment).toMatchObject({ ok: true, value: { deliveryFeePayment: true } });
+  });
+
   it('calcula el capital final por cuenta incluyendo ahorros y transferencias de la jornada', async () => {
     const accounts = await financialAccounts.list('business');
     expect(accounts.ok).toBe(true);
