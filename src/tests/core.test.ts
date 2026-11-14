@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { classifyDescription, learnCategory } from '../ai/categoryClassifier';
 import { createEmptyData } from '../models/defaults';
-import { availableBusinessCapital, buildDashboardSummary, buildDeliveryFeeSummary, buildFinancialReportAnalytics, buildNovemberGoalSummary, buildReport, buildReportExportRows, goalProgress, remainingForGoal, savingsBalance, searchLedger, totalsFor, validateFinancialIntegrity } from '../services/ledger';
+import { availableBusinessCapital, buildDashboardSummary, buildDeliveryFeeSummary, buildFinancialReportAnalytics, buildReport, buildReportExportRows, goalProgress, remainingForGoal, savingsBalance, searchLedger, totalsFor, validateFinancialIntegrity } from '../services/ledger';
 import { buildReminders, defaultNotificationPreferences } from '../services/notification.service';
 import type { Movement } from '../types';
 
@@ -33,26 +33,6 @@ describe('cálculos del libro', () => {
     expect(buildDeliveryFeeSummary(movements, new Date('2026-10-31T12:00:00.000Z'))).toEqual({
       weekReservedCOP: 0,
       outstandingCOP: 0,
-    });
-  });
-
-  it('usa saldos actuales de ambas cuentas y calcula el neto diario hasta el 15 de noviembre', () => {
-    const data = createEmptyData();
-    data.accountBalances = {
-      personal: { total: 300_000, accounts: [] },
-      deliveries: { total: 450_000, accounts: [] },
-    };
-    data.savings = [{ id: 'savings', kind: 'deposit', amountCOP: 400_000, occurredAt: '2026-10-31T10:00:00.000Z', note: 'No se incluye' }];
-    expect(buildNovemberGoalSummary(data, new Date('2026-10-31T12:00:00.000Z'))).toMatchObject({
-      goalCOP: 1_500_000,
-      personalCOP: 300_000,
-      businessCOP: 450_000,
-      currentCOP: 750_000,
-      remainingCOP: 750_000,
-      progress: 0.5,
-      daysRemaining: 15,
-      dailyNetCOP: 50_000,
-      deadlinePassed: false,
     });
   });
 

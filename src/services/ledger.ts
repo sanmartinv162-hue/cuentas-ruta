@@ -45,42 +45,6 @@ export function buildDeliveryFeeSummary(movements: DeliveryFeeEntry[], now = new
   };
 }
 
-export interface NovemberGoalSummary {
-  goalCOP: number;
-  personalCOP: number;
-  businessCOP: number;
-  currentCOP: number;
-  remainingCOP: number;
-  progress: number;
-  daysRemaining: number;
-  dailyNetCOP: number;
-  deadline: Date;
-  deadlinePassed: boolean;
-}
-
-export function buildNovemberGoalSummary(data: AppData, now = new Date()): NovemberGoalSummary {
-  const goalCOP = 1_500_000;
-  const personalCOP = data.accountBalances?.personal.total ?? 0;
-  const businessCOP = data.accountBalances?.deliveries.total ?? 0;
-  const currentCOP = personalCOP + businessCOP;
-  const remainingCOP = Math.max(goalCOP - currentCOP, 0);
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const deadline = new Date(now.getFullYear(), 10, 15);
-  const daysRemaining = Math.max(Math.ceil((deadline.getTime() - today.getTime()) / 86_400_000), 0);
-  return {
-    goalCOP,
-    personalCOP,
-    businessCOP,
-    currentCOP,
-    remainingCOP,
-    progress: Math.min(currentCOP / goalCOP, 1),
-    daysRemaining,
-    dailyNetCOP: remainingCOP > 0 && daysRemaining > 0 ? Math.ceil(remainingCOP / daysRemaining) : 0,
-    deadline,
-    deadlinePassed: today >= deadline && currentCOP < goalCOP,
-  };
-}
-
 export function availableBusinessCapital(workday: Workday, movements: Movement[]): number {
   const scoped = movements.filter((movement) => !movement.deletedAt && movement.space === 'deliveries' && movement.workdayId === workday.id);
   const netChange = scoped.reduce((total, movement) => total + (movement.kind === 'income' ? movement.amountCOP : -movement.amountCOP), 0);

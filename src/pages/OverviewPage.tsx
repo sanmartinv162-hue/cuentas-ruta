@@ -1,10 +1,10 @@
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, Bike, CircleCheck, Plus, Wallet } from 'lucide-react';
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { AppData, LedgerSpace, Movement, MovementKind } from '../types';
 import { buildDashboardSummary } from '../services/ledger';
 import { formatCOP } from '../utils/format';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { StartJourneyButton } from '../components/StartJourneyButton';
-import { NovemberGoalCard } from '../components/ui/NovemberGoalCard';
 import { buildDeliveryFeeSummary } from '../services/ledger';
 
 interface Props {
@@ -30,6 +30,25 @@ export function OverviewPage({ data, onNew, onStartWorkday, onFinishWorkday, onP
   const progress = summary.businessGoalProgress;
   const recent = summary.personalRecent;
   const deliveryFeeSummary = buildDeliveryFeeSummary(data.movements);
+  const now = new Date();
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+  const weeklyMovements = data.movements.filter((movement) => !movement.deletedAt && !movement.internalTransfer && new Date(movement.occurredAt) >= weekStart && new Date(movement.occurredAt) <= now);
+  const dayCount = Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - weekStart.getTime()) / 86_400_000) + 1;
+  const weeklyChartData = Array.from({ length: dayCount }, (_, index) => {
+    const day = new Date(weekStart);
+    day.setDate(weekStart.getDate() + index);
+    const dayEnd = new Date(day);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    const movements = weeklyMovements.filter((movement) => new Date(movement.occurredAt) >= day && new Date(movement.occurredAt) < dayEnd);
+    return {
+      label: new Intl.DateTimeFormat('es-CO', { weekday: 'short', day: 'numeric' }).format(day),
+      incomeCOP: movements.filter((movement) => movement.kind === 'income').reduce((total, movement) => total + movement.amountCOP, 0),
+      expenseCOP: movements.filter((movement) => movement.kind === 'expense').reduce((total, movement) => total + movement.amountCOP, 0),
+    };
+  });
+  const weeklyIncomeCOP = weeklyChartData.reduce((total, day) => total + day.incomeCOP, 0);
+  const weeklyExpenseCOP = weeklyChartData.reduce((total, day) => total + day.expenseCOP, 0);
 
   return (
     <div className="page-content">
@@ -73,8 +92,6 @@ export function OverviewPage({ data, onNew, onStartWorkday, onFinishWorkday, onP
         </article>
       </div>
 
-      <NovemberGoalCard data={data} />
-
       <section className="delivery-fee-summary" aria-label="Apartado semanal para el líder">
         <div><p className="eyebrow">APARTADO SEMANAL · 15% DE LOS INGRESOS</p><h2>Pago al líder</h2></div>
         <div><span>Separado esta semana</span><strong>{formatCOP(deliveryFeeSummary.weekReservedCOP)}</strong></div>
@@ -82,6 +99,22 @@ export function OverviewPage({ data, onNew, onStartWorkday, onFinishWorkday, onP
         <p>El valor separado se reduce al registrar el pago y llega a $0 al pagar todo el pendiente.</p>
         <button className="button outline-button" type="button" onClick={onPayDeliveryFee} disabled={!workday || deliveryFeeSummary.outstandingCOP === 0}>Pagar todo el apartado</button>
         {!workday && deliveryFeeSummary.outstandingCOP > 0 && <small>Inicia una jornada para registrar el pago.</small>}
+      </section>
+
+      <section className="report-chart weekly-movements-chart" aria-label="Ingresos y gastos de esta semana">
+        <div className="section-heading"><div><p className="eyebrow">LUNES A HOY · PERSONAL Y NEGOCIO</p><h2>Ingresos y gastos de la semana</h2></div></div>
+        <div className="weekly-movement-totals"><span>Ingresos<strong>{formatCOP(weeklyIncomeCOP)}</strong></span><span>Gastos<strong>{formatCOP(weeklyExpenseCOP)}</strong></span></div>
+        <ResponsiveContainer width="100%" height={240}>
+          <LineChart data={weeklyChartData} margin={{ top: 10, right: 8, left: 4, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="label" tickLine={false} />
+            <YAxis width={56} tickFormatter={(value: number) => `${Math.round(value / 1000)}k`} />
+            <Tooltip formatter={(value: unknown) => formatCOP(Number(value ?? 0))} />
+            <Legend />
+            <Line type="monotone" dataKey="incomeCOP" name="Ingresos" stroke="#224e3f" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+            <Line type="monotone" dataKey="expenseCOP" name="Gastos" stroke="#d78259" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+          </LineChart>
+        </ResponsiveContainer>
       </section>
 
       <GlobalSearch data={data} onEdit={onEdit} onNavigate={onNavigate} />
