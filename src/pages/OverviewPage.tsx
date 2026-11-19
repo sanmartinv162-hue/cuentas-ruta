@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ArrowDownLeft, ArrowRight, ArrowUpRight, Bike, CircleCheck, Plus, Wallet } from 'lucide-react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { AppData, LedgerSpace, Movement, MovementKind } from '../types';
@@ -6,6 +7,8 @@ import { formatCOP } from '../utils/format';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { StartJourneyButton } from '../components/StartJourneyButton';
 import { buildDeliveryFeeSummary } from '../services/ledger';
+
+type ChartPeriod = 'week' | 'month' | 'quarter';
 
 interface Props {
   data: AppData;
@@ -21,6 +24,7 @@ interface Props {
 }
 
 export function OverviewPage({ data, onNew, onStartWorkday, onFinishWorkday, onPayDeliveryFee, onOpenHistory, onOpenPersonal, onOpenBusiness, onEdit, onNavigate }: Props) {
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('week');
   const summary = buildDashboardSummary(data);
   const workday = summary.activeWorkday;
   const accountBalances = data.accountBalances;
@@ -33,22 +37,46 @@ export function OverviewPage({ data, onNew, onStartWorkday, onFinishWorkday, onP
   const now = new Date();
   const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
-  const weeklyMovements = data.movements.filter((movement) => !movement.deletedAt && !movement.internalTransfer && new Date(movement.occurredAt) >= weekStart && new Date(movement.occurredAt) <= now);
-  const dayCount = Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - weekStart.getTime()) / 86_400_000) + 1;
-  const weeklyChartData = Array.from({ length: dayCount }, (_, index) => {
-    const day = new Date(weekStart);
-    day.setDate(weekStart.getDate() + index);
-    const dayEnd = new Date(day);
-    dayEnd.setDate(dayEnd.getDate() + 1);
-    const movements = weeklyMovements.filter((movement) => new Date(movement.occurredAt) >= day && new Date(movement.occurredAt) < dayEnd);
+  const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+  const chartStart = chartPeriod === 'week'
+    ? weekStart
+    : chartPeriod === 'month'
+      ? new Date(now.getFullYear(), now.getMonth(), 1)
+      : new Date(now.getFullYear(), quarterStartMonth, 1);
+  const chartBuckets = chartPeriod === 'week'
+    ? Array.from({ length: Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - weekStart.getTime()) / 86_400_000) + 1 }, (_, index) => {
+      const start = new Date(weekStart);
+      start.setDate(weekStart.getDate() + index);
+      return { start, label: new Intl.DateTimeFormat('es-CO', { weekday: 'short', day: 'numeric' }).format(start) };
+    })
+    : chartPeriod === 'month'
+      ? Array.from({ length: now.getDate() }, (_, index) => {
+        const start = new Date(now.getFullYear(), now.getMonth(), index + 1);
+        return { start, label: new Intl.DateTimeFormat('es-CO', { day: 'numeric' }).format(start) };
+      })
+      : Array.from({ length: now.getMonth() - quarterStartMonth + 1 }, (_, index) => {
+        const start = new Date(now.getFullYear(), quarterStartMonth + index, 1);
+        return { start, label: new Intl.DateTimeFormat('es-CO', { month: 'short' }).format(start) };
+      });
+  const chartMovements = data.movements.filter((movement) => !movement.deletedAt && !movement.internalTransfer && new Date(movement.occurredAt) >= chartStart && new Date(movement.occurredAt) <= now);
+  const chartData = chartBuckets.map(({ start, label }) => {
+    const end = chartPeriod === 'quarter'
+      ? new Date(start.getFullYear(), start.getMonth() + 1, 1)
+      : new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
+    const movements = chartMovements.filter((movement) => new Date(movement.occurredAt) >= start && new Date(movement.occurredAt) < end);
     return {
-      label: new Intl.DateTimeFormat('es-CO', { weekday: 'short', day: 'numeric' }).format(day),
+      label,
       incomeCOP: movements.filter((movement) => movement.kind === 'income').reduce((total, movement) => total + movement.amountCOP, 0),
       expenseCOP: movements.filter((movement) => movement.kind === 'expense').reduce((total, movement) => total + movement.amountCOP, 0),
     };
   });
-  const weeklyIncomeCOP = weeklyChartData.reduce((total, day) => total + day.incomeCOP, 0);
-  const weeklyExpenseCOP = weeklyChartData.reduce((total, day) => total + day.expenseCOP, 0);
+  const chartWithProfit = chartData.map((period) => ({ ...period, profitCOP: period.incomeCOP - period.expenseCOP }));
+  const chartIncomeCOP = chartData.reduce((total, period) => total + period.incomeCOP, 0);
+  const chartExpenseCOP = chartData.reduce((total, period) => total + period.expenseCOP, 0);
+  const chartProfitCOP = chartIncomeCOP - chartExpenseCOP;
+  const chartPeriodLabel = chartPeriod === 'week' ? 'semanal' : chartPeriod === 'month' ? 'mensual' : 'trimestral';
+  const chartRangeLabel = chartPeriod === 'week' ? 'esta semana' : chartPeriod === 'month' ? 'este mes' : 'este trimestre';
+  const chartEyebrow = chartPeriod === 'week' ? 'LUNES A HOY' : chartPeriod === 'month' ? 'MES ACTUAL' : 'TRIMESTRE ACTUAL';
 
   return (
     <div className="page-content">
@@ -101,11 +129,17 @@ export function OverviewPage({ data, onNew, onStartWorkday, onFinishWorkday, onP
         {!workday && deliveryFeeSummary.outstandingCOP > 0 && <small>Inicia una jornada para registrar el pago.</small>}
       </section>
 
-      <section className="report-chart weekly-movements-chart" aria-label="Ingresos y gastos de esta semana">
-        <div className="section-heading"><div><p className="eyebrow">LUNES A HOY · PERSONAL Y NEGOCIO</p><h2>Ingresos y gastos de la semana</h2></div></div>
-        <div className="weekly-movement-totals"><span>Ingresos<strong>{formatCOP(weeklyIncomeCOP)}</strong></span><span>Gastos<strong>{formatCOP(weeklyExpenseCOP)}</strong></span></div>
+      <section className="report-chart weekly-movements-chart" aria-label={`Ingresos, gastos y utilidad de ${chartRangeLabel}`}>
+        <div className="section-heading"><div><p className="eyebrow">{chartEyebrow} · PERSONAL Y NEGOCIO</p><h2>Ingresos, gastos y utilidad {chartPeriodLabel}</h2></div></div>
+        <div className="chart-period-selector" role="group" aria-label="Periodo de la gráfica">
+          {(['week', 'month', 'quarter'] as const).map((period) => {
+            const label = period === 'week' ? 'Semana' : period === 'month' ? 'Mensual' : 'Trimestral';
+            return <button key={period} className={`button ${chartPeriod === period ? 'primary-button' : 'outline-button'}`} type="button" aria-pressed={chartPeriod === period} onClick={() => setChartPeriod(period)}>{label}</button>;
+          })}
+        </div>
+        <div className="weekly-movement-totals"><span>Ingresos<strong>{formatCOP(chartIncomeCOP)}</strong></span><span>Gastos<strong>{formatCOP(chartExpenseCOP)}</strong></span><span>Utilidad<strong>{formatCOP(chartProfitCOP)}</strong></span></div>
         <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={weeklyChartData} margin={{ top: 10, right: 8, left: 4, bottom: 0 }}>
+          <LineChart data={chartWithProfit} margin={{ top: 10, right: 8, left: 4, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="label" tickLine={false} />
             <YAxis width={56} tickFormatter={(value: number) => `${Math.round(value / 1000)}k`} />
@@ -113,6 +147,7 @@ export function OverviewPage({ data, onNew, onStartWorkday, onFinishWorkday, onP
             <Legend />
             <Line type="monotone" dataKey="incomeCOP" name="Ingresos" stroke="#224e3f" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
             <Line type="monotone" dataKey="expenseCOP" name="Gastos" stroke="#d78259" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+            <Line type="monotone" dataKey="profitCOP" name="Utilidad" stroke="#7997cf" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
           </LineChart>
         </ResponsiveContainer>
       </section>

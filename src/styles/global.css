@@ -190,6 +190,7 @@ a { color: inherit; text-decoration: none; }
 .report-chart h3 { margin: 0 0 12px; color: var(--ink); font-size: 13px; }
 .weekly-movements-chart { margin-top: 16px; }
 .weekly-movements-chart h2 { margin: 0; font-family: 'Manrope', 'Avenir Next', sans-serif; font-size: 15px; }
+.chart-period-selector { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
 .weekly-movement-totals { display: flex; flex-wrap: wrap; gap: 10px 24px; margin: 12px 0; }
 .weekly-movement-totals span { display: grid; gap: 3px; color: var(--muted); font-size: 11px; }
 .weekly-movement-totals strong { color: var(--ink); font-size: 15px; font-variant-numeric: tabular-nums; }
